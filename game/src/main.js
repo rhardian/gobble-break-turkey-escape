@@ -2,8 +2,8 @@
 
 import { AudioEngine } from './audio.js';
 import { VIEWPORT } from './config.js';
-import { GameEngine } from './engine.js';
 import { InputController } from './input.js';
+import { GameEngine } from './engine.js';
 
 const canvas = document.getElementById('game-canvas');
 const audio = new AudioEngine();

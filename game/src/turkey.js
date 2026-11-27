@@ -211,6 +211,14 @@ export function updateTurkey(turkey, input, stage, farmer, dt, audio, particles,
     turkey.stamina = Math.min(PHYSICS.staminaMax, turkey.stamina + PHYSICS.staminaRegenPerSec * 1.15 * dt);
     return;
   } else if (turkey.hiding) {
+    // Ambush Slip reward when bursting out of cover while Farmer Jeb is actively searching nearby!
+    if (farmer && farmer.state === 'search' && Math.abs(farmer.x - turkey.x) < 220) {
+      turkey.vx = turkey.facing * (PHYSICS.maxRunSpeed + 130);
+      turkey.stamina = Math.min(PHYSICS.staminaMax, turkey.stamina + 25);
+      particles.spawnFeathers(turkey.x, turkey.y - 32, 8, 200);
+      audio.playCloseShave();
+      onScore(200, 'AMBUSH SLIP! +200', '#a8f564', turkey.x, turkey.y - 84);
+    }
     turkey.hiding = false;
     turkey.hideCover = null;
     turkey.squashX = 0.82;

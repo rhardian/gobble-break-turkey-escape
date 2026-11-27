@@ -1,6 +1,9 @@
 // Core game state machine, fixed-timestep loop, camera tracking, persistence, and live attract diorama.
 
 import { SCORE_VALUES, STAGE_DEFS, STORAGE_KEYS, VIEWPORT } from './config.js';
+import { createRng } from './rng.js';
+import { buildStage } from './stages.js';
+import { createTurkey, triggerDash, triggerKickOrGobble, updateTurkey } from './turkey.js';
 import { createFarmer, updateFarmerAI } from './farmer.js';
 import {
   spawnStageKnifeVolley,
@@ -11,11 +14,7 @@ import {
   updatePickups,
 } from './hazards.js';
 import { ParticleSystem } from './particles.js';
-import { renderScene } from './renderer.js';
-import { createRng } from './rng.js';
-import { buildStage } from './stages.js';
 import { createSurfacePatterns } from './textures.js';
-import { createTurkey, triggerDash, triggerKickOrGobble, updateTurkey } from './turkey.js';
 import {
   getHudButtons,
   getOverlayButtons,
@@ -25,6 +24,7 @@ import {
   renderPauseOverlay,
   renderTitleOverlay,
 } from './ui.js';
+import { renderScene } from './renderer.js';
 
 export class GameEngine {
   constructor(canvas, input, audio) {
