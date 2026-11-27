@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/turkey-run-game-01/rhardian/gobble-break-turkey-escape/rank.svg)](https://make.fun/bounty/turkey-run-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=turkey-run-game-01)
 [![reward](https://make.fun/badge/turkey-run-game-01/rhardian/gobble-break-turkey-escape/reward.svg)](https://make.fun/bounty/turkey-run-game-01?utm_source=github&utm_medium=readme&utm_campaign=turkey-run-game-01)
 
-Gobble Break is an original offline 2.5D Thanksgiving escape action-stealth browser game built with vanilla HTML5 Canvas, procedural surface textures, and synthesized Web Audio folk music. Play as Barnaby the turkey outrunning Farmer Jeb (and Chef Jeb) across four escalating autumn zones—Autumn Farmyard, Harvest Timber Barn, Roasting Kitchen, and Grand Banquet Escape—jumping, wing-fluttering, feather-dashing, hiding in cover, kicking flour sacks and pumpkins to stun the farmer, and dodging 450°F roasting ovens and flying carving knives.
+Gobble Break 3D is an original offline 3D Thanksgiving escape action-stealth browser game built with Three.js WebGL2 (ACES Filmic tone mapping, real-time soft shadows, procedural PBR CanvasTextures) and synthesized Web Audio bluegrass chase music. Play as Barnaby the turkey outrunning Farmer Jeb (and Chef Jeb) across four escalating 3D autumn zones—Autumn Farmyard, Harvest Timber Barn, 450°F Roasting Kitchen, and Grand Banquet Escape—jumping, wing-fluttering, feather-dashing, hiding in 3D cover, kicking flour sacks and pumpkins to blind or stun the farmer, drafting between-stage escape perks, and dodging roaring 450°F cast-iron ovens and flying carving knives.
 
 ## Run it
 

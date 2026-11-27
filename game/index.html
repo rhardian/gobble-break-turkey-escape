@@ -3,13 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gobble Break — The Great Thanksgiving Escape</title>
+  <title>Gobble Break 3D — The Great Thanksgiving Escape</title>
   <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.min.js"
+      }
+    }
+  </script>
 </head>
 <body>
-  <main id="game-shell" aria-label="Gobble Break Turkey Escape Game">
-    <canvas id="game-canvas" width="1280" height="720" tabindex="0"></canvas>
-    <div id="sr-status" class="sr-only" aria-live="polite"></div>
+  <main id="game-shell" aria-label="Gobble Break 3D Thanksgiving Turkey Escape Game">
+    <div id="stage-frame">
+      <canvas id="webgl-canvas" width="1280" height="720"></canvas>
+      <canvas id="ui-canvas" width="1280" height="720" tabindex="0"></canvas>
+    </div>
   </main>
   <script type="module" src="./src/main.js"></script>
 </body>

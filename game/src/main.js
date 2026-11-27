@@ -1,19 +1,21 @@
-// Entry bootstrapper for Gobble Break: wires canvas, audio, input, and fixed-step game loop.
+// Bootstrapper for Gobble Break 3D: wires Three.js WebGL2 canvas, 2D HiDPI UI overlay, audio, and fixed-step loop.
 
 import { AudioEngine } from './audio.js';
 import { VIEWPORT } from './config.js';
 import { InputController } from './input.js';
 import { GameEngine } from './engine.js';
 
-const canvas = document.getElementById('game-canvas');
+const webglCanvas = document.getElementById('webgl-canvas');
+const uiCanvas = document.getElementById('ui-canvas');
+webglCanvas.width = VIEWPORT.width;
+webglCanvas.height = VIEWPORT.height;
+uiCanvas.width = VIEWPORT.width;
+uiCanvas.height = VIEWPORT.height;
+
 const audio = new AudioEngine();
-const input = new InputController(canvas, () => audio.unlock());
-const engine = new GameEngine(canvas, input, audio);
+const input = new InputController(uiCanvas, () => audio.unlock());
+const engine = new GameEngine(webglCanvas, uiCanvas, input, audio);
 
-canvas.width = VIEWPORT.width;
-canvas.height = VIEWPORT.height;
-
-// Expose engine instance for clean local testing & inspection
 window.__gobbleBreak = engine;
 
 let lastTime = performance.now();

@@ -1,19 +1,19 @@
-// Responsive keyboard and mouse input handler with jump buffering and pointer hit-testing.
+// Unified 3D Keyboard + Mouse input handler (WASD/Arrows 8-dir movement, Jump/Flutter, Dash, Hide, Kick, Perks).
 
 import { VIEWPORT } from './config.js';
 
 export class InputController {
-  constructor(canvas, onAction) {
+  constructor(canvas, onInteract) {
     this.canvas = canvas;
-    this.onAction = onAction;
+    this.onInteract = onInteract;
     this.keys = new Set();
     this.justPressed = new Set();
     this.pointer = { x: VIEWPORT.width * 0.5, y: VIEWPORT.height * 0.5, down: false, rightDown: false };
     this.clicks = [];
-    this._bindEvents();
+    this._bind();
   }
 
-  _bindEvents() {
+  _bind() {
     window.addEventListener('keydown', (e) => {
       const code = e.code;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) {
@@ -21,7 +21,7 @@ export class InputController {
       }
       if (!this.keys.has(code)) {
         this.justPressed.add(code);
-        if (this.onAction) this.onAction('key', code);
+        if (this.onInteract) this.onInteract();
       }
       this.keys.add(code);
     }, { passive: false });
@@ -37,24 +37,23 @@ export class InputController {
     });
 
     this.canvas.addEventListener('mousemove', (e) => {
-      const pos = this._toCanvasCoords(e);
-      this.pointer.x = pos.x;
-      this.pointer.y = pos.y;
+      const p = this._coords(e);
+      this.pointer.x = p.x;
+      this.pointer.y = p.y;
     });
 
     this.canvas.addEventListener('mousedown', (e) => {
       this.canvas.focus();
-      const pos = this._toCanvasCoords(e);
-      this.pointer.x = pos.x;
-      this.pointer.y = pos.y;
+      if (this.onInteract) this.onInteract();
+      const p = this._coords(e);
+      this.pointer.x = p.x;
+      this.pointer.y = p.y;
       if (e.button === 2) {
         this.pointer.rightDown = true;
         this.justPressed.add('MouseRight');
-        if (this.onAction) this.onAction('rightClick', pos);
       } else if (e.button === 0) {
         this.pointer.down = true;
-        this.clicks.push(pos);
-        if (this.onAction) this.onAction('click', pos);
+        this.clicks.push(p);
       }
     });
 
@@ -63,47 +62,51 @@ export class InputController {
       if (e.button === 0) this.pointer.down = false;
     });
 
-    this.canvas.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-    });
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  _toCanvasCoords(event) {
-    const rect = this.canvas.getBoundingClientRect();
-    const scaleX = VIEWPORT.width / Math.max(1, rect.width);
-    const scaleY = VIEWPORT.height / Math.max(1, rect.height);
+  _coords(e) {
+    const r = this.canvas.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY,
+      x: (e.clientX - r.left) * (VIEWPORT.width / Math.max(1, r.width)),
+      y: (e.clientY - r.top) * (VIEWPORT.height / Math.max(1, r.height)),
     };
   }
 
   isDown(...codes) {
-    for (const c of codes) {
-      if (this.keys.has(c)) return true;
-    }
-    return false;
+    return codes.some((c) => this.keys.has(c));
   }
 
   wasPressed(...codes) {
-    for (const c of codes) {
-      if (this.justPressed.has(c)) return true;
-    }
-    return false;
+    return codes.some((c) => this.justPressed.has(c));
   }
 
-  getMoveAxis() {
-    const left = this.isDown('ArrowLeft', 'KeyA') ? 1 : 0;
-    const right = this.isDown('ArrowRight', 'KeyD') ? 1 : 0;
-    return right - left;
+  // 3D movement vector: X (-1 left .. +1 right across courtyard), Z (+1 forward down escape course .. -1 back)
+  getMoveVector3D() {
+    // Camera looks toward +Z from behind, with X to screen-left/right:
+    // D / Right moves screen-right (-X in world when camera faces +Z? Let's define camera at (0, +Y, Z-12) looking at (0, 0, Z+6):
+    // In Three.js right-handed coords: camera at (0, 8, -12) looking at (0, 0, +6) has +X pointing SCREEN-LEFT!
+    // So screen-right = -X, screen-left = +X, forward = +Z, backward = -Z!
+    const right = this.isDown('KeyD', 'ArrowRight') ? 1 : 0;
+    const left = this.isDown('KeyA', 'ArrowLeft') ? 1 : 0;
+    const forward = this.isDown('KeyW', 'ArrowUp') ? 1 : 0;
+    const back = this.isDown('KeyS', 'ArrowDown') ? 1 : 0;
+    let x = left - right;
+    let z = forward - back;
+    const len = Math.hypot(x, z);
+    if (len > 1) {
+      x /= len;
+      z /= len;
+    }
+    return { x, z };
   }
 
   isJumpHeld() {
-    return this.isDown('Space', 'ArrowUp', 'KeyW') || this.pointer.rightDown;
+    return this.isDown('Space');
   }
 
   wasJumpPressed() {
-    return this.wasPressed('Space', 'ArrowUp', 'KeyW', 'MouseRight');
+    return this.wasPressed('Space');
   }
 
   wasDashPressed() {
@@ -111,11 +114,11 @@ export class InputController {
   }
 
   isHideHeld() {
-    return this.isDown('ArrowDown', 'KeyS', 'KeyE');
+    return this.isDown('KeyE', 'KeyC');
   }
 
   wasKickPressed() {
-    return this.wasPressed('KeyF', 'KeyK');
+    return this.wasPressed('KeyF', 'KeyK', 'MouseRight');
   }
 
   wasPausePressed() {
@@ -131,10 +134,10 @@ export class InputController {
   }
 
   consumeClicks() {
-    if (this.clicks.length === 0) return [];
-    const copy = this.clicks.slice();
+    if (!this.clicks.length) return [];
+    const out = this.clicks.slice();
     this.clicks.length = 0;
-    return copy;
+    return out;
   }
 
   endFrame() {

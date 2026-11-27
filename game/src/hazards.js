@@ -1,228 +1,212 @@
-// Thanksgiving hazards & collectibles: 450°F roasting ovens, carving knives, pendulums, kickable props, pickups.
+// 3D Hazard & Collectible Simulation: 450°F Roasting Ovens, Spinning Carving Knives, Pendulum Cleavers, Kick Props, Pickups.
 
-import { PALETTE, PHYSICS, SCORE_VALUES } from './config.js';
-import { stunFarmer } from './farmer.js';
-import { damageTurkey } from './turkey.js';
+import { PHYSICS, SCORE_VALUES, WORLD } from './config.js';
+import { stunFarmer3D } from './farmer.js';
+import { createCarvingKnifeMesh } from './models.js';
+import { damageTurkey3D } from './turkey.js';
 
-export function updateOvens(stage, turkey, dt, audio, particles, onScore) {
+export function updateOvens3D(stage, turkey, time, dt, audio, effects, onScore) {
   for (const oven of stage.ovens) {
     oven.timer = (oven.timer + dt) % oven.cycleDuration;
     const t = oven.timer / oven.cycleDuration;
 
-    if (t < 0.48) {
+    if (t < 0.46) {
       oven.state = 'idle';
-      oven.doorOpen = Math.max(0, oven.doorOpen - dt * 5);
+      oven.doorPivot.rotation.z += (0 - oven.doorPivot.rotation.z) * Math.min(1, dt * 8);
+      oven.flameGroup.visible = false;
+      oven.fireLight.intensity = 1.6;
       oven.blastedThisCycle = false;
       oven.closeShaveGiven = false;
-    } else if (t < 0.72) {
+    } else if (t < 0.70) {
       oven.state = 'telegraph';
-      oven.doorOpen = 0.14 + Math.sin(oven.timer * 42) * 0.06;
-      if (Math.random() < dt * 8) {
-        particles.spawnEmbers(oven.x + oven.w * 0.5, oven.y + 52, 1, oven.facing);
+      oven.doorPivot.rotation.z = -oven.facingDir * (0.28 + Math.sin(time * 38) * 0.08);
+      oven.flameGroup.visible = false;
+      oven.fireLight.intensity = 3.2 + Math.sin(time * 30) * 0.8;
+      if (Math.random() < dt * 9 && Math.abs(turkey.z - oven.z) < 22) {
+        effects.spawnEmbers(oven.x + oven.facingDir * 1.3, 1.1, oven.z, oven.facingDir, 1);
       }
     } else {
       oven.state = 'blast';
-      oven.doorOpen = Math.min(1, oven.doorOpen + dt * 9);
+      oven.doorPivot.rotation.z += (-oven.facingDir * 1.45 - oven.doorPivot.rotation.z) * Math.min(1, dt * 12);
+      oven.flameGroup.visible = true;
+      const pulse = 0.92 + Math.sin(time * 34) * 0.12;
+      oven.flameGroup.scale.set(pulse, 1 + Math.cos(time * 28) * 0.08, 1);
+      oven.fireLight.intensity = 6.2 + Math.sin(time * 36) * 1.2;
+
       if (!oven.blastedThisCycle) {
         oven.blastedThisCycle = true;
-        if (Math.abs(turkey.x - oven.x) < 760) {
+        if (Math.abs(turkey.z - oven.z) < 20) {
           audio.playOvenBlast();
+          effects.spawnEmbers(oven.x + oven.facingDir * 1.5, 1.1, oven.z, oven.facingDir, 8);
         }
-        particles.spawnEmbers(oven.x + oven.w * 0.5 + oven.facing * 45, oven.y + 66, 12, oven.facing);
       }
-      if (Math.random() < dt * 26) {
-        particles.spawnEmbers(oven.x + oven.w * 0.5 + oven.facing * 52, oven.y + 68, 1, oven.facing);
-      }
-    }
 
-    // Flame & heat-wave collision box when blasting
-    if (oven.state === 'blast' && !turkey.hiding) {
-      const flameStartX = oven.facing < 0 ? oven.x - oven.flameLength : oven.x + oven.w;
-      const flameEndX = oven.facing < 0 ? oven.x + 12 : oven.x + oven.w + oven.flameLength;
-      const flameTop = oven.y + 34;
-      const flameBottom = stage.groundY - 4;
+      // Check 3D flame jet box against Barnaby!
+      if (!turkey.hiding) {
+        const minX = oven.facingDir > 0 ? oven.x + 1.0 : oven.x - 1.0 - oven.flameRange;
+        const maxX = oven.facingDir > 0 ? oven.x + 1.0 + oven.flameRange : oven.x - 1.0;
+        const inX = turkey.x + 0.42 > minX && turkey.x - 0.42 < maxX;
+        const inZ = Math.abs(turkey.z - oven.z) < 0.95;
+        const inY = turkey.y < 1.58;
 
-      const hit =
-        turkey.x + 16 > flameStartX &&
-        turkey.x - 16 < flameEndX &&
-        turkey.y - 6 > flameTop &&
-        turkey.y - 44 < flameBottom;
-
-      if (hit) {
-        damageTurkey(turkey, oven.facing, audio, particles, '450°F ROASTED!');
-      } else if (
-        !oven.closeShaveGiven &&
-        turkey.closeShaveCooldown <= 0 &&
-        turkey.x + 48 > flameStartX &&
-        turkey.x - 48 < flameEndX &&
-        turkey.y > flameTop - 68 &&
-        turkey.y - 48 < flameBottom + 14
-      ) {
-        oven.closeShaveGiven = true;
-        turkey.closeShaveCooldown = PHYSICS.closeShaveCooldown;
-        audio.playCloseShave();
-        particles.triggerHitstop(0.035);
-        particles.spawnSparkles(turkey.x, turkey.y - 32, 9, PALETTE.ovenCore);
-        onScore(SCORE_VALUES.closeShave, 'TOO HOT! +150', '#ffca57', turkey.x, turkey.y - 84);
+        if (inX && inZ && inY) {
+          damageTurkey3D(turkey, oven.facingDir * 0.6, -0.5, audio, effects, '450°F ROASTED!');
+        } else if (
+          !oven.closeShaveGiven &&
+          turkey.closeShaveCooldown <= 0 &&
+          inX &&
+          Math.abs(turkey.z - oven.z) < 1.65 &&
+          turkey.y < 2.9
+        ) {
+          oven.closeShaveGiven = true;
+          turkey.closeShaveCooldown = PHYSICS.closeShaveCooldown;
+          audio.playCloseShave();
+          effects.triggerHitstop(0.035);
+          effects.spawnFeathers(turkey.x, turkey.y + 0.8, turkey.z, 5, 4.5);
+          onScore(SCORE_VALUES.closeShave, 'TOO HOT! +150', '#ffca57', turkey.x, turkey.y + 2.1, turkey.z);
+        }
       }
     }
   }
 }
 
-export function updatePendulums(stage, turkey, dt, audio, particles, onScore) {
-  for (const pend of stage.pendulums) {
-    pend.phase += dt * pend.speed;
-    pend.angle = Math.sin(pend.phase) * pend.maxAngle;
-    pend.bobX = pend.x + Math.sin(pend.angle) * pend.length;
-    pend.bobY = pend.pivotY + Math.cos(pend.angle) * pend.length;
+export function updatePendulums3D(stage, turkey, dt, audio, effects, onScore) {
+  for (const p of stage.pendulums) {
+    p.phase += dt * p.speed;
+    const angle = Math.sin(p.phase) * p.maxAngle;
+    p.pivot.rotation.z = angle;
+
+    const armLen = Math.abs(p.bobLocalY);
+    p.bobX = Math.sin(angle) * armLen;
+    p.bobY = 5.5 - Math.cos(angle) * armLen;
 
     if (turkey.hiding) continue;
-    const dist = Math.hypot(turkey.x - pend.bobX, (turkey.y - 28) - pend.bobY);
-    if (dist < 42) {
-      damageTurkey(turkey, turkey.x >= pend.bobX ? 1 : -1, audio, particles, 'CLEAVER HIT!');
-    } else if (dist < 84 && !pend.closeShaveGiven && turkey.closeShaveCooldown <= 0) {
-      pend.closeShaveGiven = true;
+    const d = Math.hypot(turkey.x - p.bobX, (turkey.y + 0.75) - p.bobY, turkey.z - p.z);
+    if (d < 1.18) {
+      damageTurkey3D(turkey, Math.sign(turkey.x - p.bobX) || 1, -0.4, audio, effects, 'CLEAVER HIT!');
+    } else if (d < 2.25 && !p.closeShaveGiven && turkey.closeShaveCooldown <= 0) {
+      p.closeShaveGiven = true;
       turkey.closeShaveCooldown = PHYSICS.closeShaveCooldown;
       audio.playCloseShave();
-      particles.spawnSparkles(turkey.x, turkey.y - 34, 8, PALETTE.steel);
-      onScore(SCORE_VALUES.closeShave, 'CLOSE SHAVE! +150', '#ffe38c', turkey.x, turkey.y - 82);
-    } else if (dist > 130) {
-      pend.closeShaveGiven = false;
+      onScore(SCORE_VALUES.closeShave, 'CLOSE SHAVE! +150', '#ffe38c', turkey.x, turkey.y + 2.1, turkey.z);
+    } else if (d > 3.2) {
+      p.closeShaveGiven = false;
     }
   }
 }
 
-export function spawnStageKnifeVolley(stage, turkey, knives, rng, audio) {
-  // Spawn a telegraphed slicing or falling carving knife ahead of Barnaby!
-  const isHorizontal = stage.theme === 'kitchen' || stage.theme === 'banquet' ? rng.next() < 0.62 : rng.next() < 0.35;
-  if (isHorizontal) {
-    const startX = Math.min(stage.length - 120, turkey.x + rng.range(430, 620));
-    const startY = stage.groundY - rng.pick([44, 96, 152]);
-    knives.push({
-      x: startX,
-      y: startY,
-      vx: -(460 + stage.index * 45) * stage.difficultyScale,
-      vy: 0,
-      gravity: 0,
-      rot: Math.PI,
-      spin: 0,
-      kind: 'slicer',
-      telegraph: 0.42,
-      life: 2.8,
-      closeShaveGiven: false,
-    });
-  } else {
-    const startX = Math.min(stage.length - 160, turkey.x + rng.range(180, 440));
-    knives.push({
-      x: startX,
-      y: 44,
-      vx: rng.range(-48, 32),
-      vy: 430 + stage.index * 36,
-      gravity: 220,
-      rot: Math.PI * 0.5,
-      spin: 0,
-      kind: 'dropper',
-      telegraph: 0.48,
-      life: 2.4,
-      closeShaveGiven: false,
-    });
+export function spawnStageKnifeVolley3D(stage, turkey, knives, scene, rng, audio) {
+  const z = Math.min(stage.length - 6, turkey.z + rng.range(13, 19));
+  const x = rng.range(-WORLD.laneHalfWidth + 1.0, WORLD.laneHalfWidth - 1.0);
+  const mesh = createCarvingKnifeMesh(1.15);
+  mesh.position.set(x, 1.05, z);
+  scene.add(mesh);
+
+  knives.push({
+    mesh,
+    x,
+    y: 1.05,
+    z,
+    vx: (turkey.x - x) * 0.25,
+    vy: 0,
+    vz: -(13.5 + stage.index * 1.4) * stage.difficultyScale,
+    gravity: 0,
+    spin: 11.0,
+    life: 2.6,
+    closeShaveGiven: false,
+  });
+  if (Math.abs(turkey.z - z) < 22) {
+    audio.playKnifeShing();
   }
-  audio.playKnifeShing();
 }
 
-export function updateCarvingKnives(knives, turkey, stage, dt, audio, particles, onScore) {
+export function updateKnives3D(knives, turkey, scene, dt, audio, effects, onScore) {
   for (let i = knives.length - 1; i >= 0; i--) {
-    const knife = knives[i];
-    if (knife.telegraph > 0) {
-      knife.telegraph = Math.max(0, knife.telegraph - dt);
-      continue;
-    }
-    knife.life -= dt;
-    knife.vy += knife.gravity * dt;
-    knife.x += knife.vx * dt;
-    knife.y += knife.vy * dt;
-    if (knife.spin !== 0) {
-      knife.rot += knife.spin * dt;
-    } else {
-      knife.rot = Math.atan2(knife.vy, knife.vx);
-    }
+    const k = knives[i];
+    k.life -= dt;
+    k.vy -= k.gravity * dt;
+    k.x += k.vx * dt;
+    k.y += k.vy * dt;
+    k.z += k.vz * dt;
 
-    if (knife.life <= 0 || knife.y > stage.groundY + 18 || knife.x < -80 || knife.x > stage.length + 120) {
-      if (knife.y >= stage.groundY) {
-        particles.spawnDust(knife.x, stage.groundY, 4, 0);
-      }
+    k.mesh.position.set(k.x, k.y, k.z);
+    k.mesh.rotation.y = Math.atan2(-k.vz, k.vx);
+    k.mesh.rotation.z += k.spin * dt;
+
+    if (k.life <= 0 || k.y < 0.05) {
+      scene.remove(k.mesh);
       knives.splice(i, 1);
       continue;
     }
 
     if (turkey.hiding) continue;
-
-    const dist = Math.hypot(turkey.x - knife.x, (turkey.y - 28) - knife.y);
-    if (dist < 34) {
-      const hurt = damageTurkey(turkey, knife.vx >= 0 ? 1 : -1, audio, particles, 'CARVING KNIFE!');
+    const d = Math.hypot(turkey.x - k.x, (turkey.y + 0.75) - k.y, turkey.z - k.z);
+    if (d < 0.92) {
+      const hurt = damageTurkey3D(turkey, Math.sign(k.vx) || 0.5, -0.5, audio, effects, 'CARVING KNIFE!');
       if (hurt) {
+        scene.remove(k.mesh);
         knives.splice(i, 1);
       }
-    } else if (
-      dist < PHYSICS.closeShaveRadius + 24 &&
-      !knife.closeShaveGiven &&
-      turkey.closeShaveCooldown <= 0
-    ) {
-      knife.closeShaveGiven = true;
+    } else if (d < PHYSICS.closeShaveDist && !k.closeShaveGiven && turkey.closeShaveCooldown <= 0) {
+      k.closeShaveGiven = true;
       turkey.closeShaveCooldown = PHYSICS.closeShaveCooldown;
       audio.playCloseShave();
-      particles.triggerHitstop(0.035);
-      particles.spawnSparkles(turkey.x, turkey.y - 34, 9, '#fff1b8');
-      onScore(SCORE_VALUES.closeShave, 'CLOSE SHAVE! +150', PALETTE.gold, turkey.x, turkey.y - 82);
+      effects.triggerHitstop(0.035);
+      effects.spawnFeathers(turkey.x, turkey.y + 0.85, turkey.z, 5, 4.5);
+      onScore(SCORE_VALUES.closeShave, 'CLOSE SHAVE! +150', '#ffd85c', turkey.x, turkey.y + 2.1, turkey.z);
     }
   }
 }
 
-export function updateKickProps(stage, farmer, dt, audio, particles, onScore) {
+export function updateKickProps3D(stage, farmer, perks, dt, audio, effects, onScore) {
   for (const prop of stage.kickProps) {
     if (prop.used || !prop.kicked) continue;
-    prop.vy += 1200 * dt;
+    prop.vy -= 22.0 * dt;
     prop.x += prop.vx * dt;
     prop.y += prop.vy * dt;
-    prop.rot += (prop.vx * 0.015) * dt;
+    prop.z += prop.vz * dt;
+    prop.mesh.position.set(prop.x, Math.max(0, prop.y), prop.z);
+    prop.mesh.rotation.x += 7 * dt;
 
-    if (prop.y + prop.radius >= stage.groundY) {
-      prop.y = stage.groundY - prop.radius;
-      prop.vy *= -0.45;
-      prop.vx *= 0.86;
-      if (Math.abs(prop.vx) < 75) {
+    if (prop.y <= 0) {
+      prop.y = 0;
+      prop.vy *= -0.4;
+      prop.vx *= 0.8;
+      prop.vz *= 0.8;
+      if (Math.hypot(prop.vx, prop.vz) < 1.5) {
         prop.kicked = false;
-        prop.vx = 0;
-        prop.vy = 0;
       }
     }
 
-    // Check impact with Farmer Jeb!
     if (farmer && farmer.state !== 'stunned' && farmer.state !== 'blind') {
-      const hitDist = Math.hypot(prop.x - farmer.x, prop.y - (farmer.y - 54));
-      if (hitDist < 62) {
+      const d = Math.hypot(prop.x - farmer.x, prop.z - farmer.z);
+      if (d < 1.55) {
         prop.used = true;
-        stunFarmer(farmer, prop.kind, audio, particles, onScore);
+        prop.mesh.visible = false;
+        stunFarmer3D(farmer, prop.kind, perks, audio, effects, onScore);
       }
     }
   }
 }
 
-export function updatePickups(stage, turkey, dt, audio, particles, onPickup) {
+export function updatePickups3D(stage, turkey, dt, audio, effects, onPickup) {
   for (const item of stage.pickups) {
     if (item.collected) continue;
-    item.bobPhase += dt * 4.2;
-    const dist = Math.hypot(turkey.x - item.x, (turkey.y - 28) - item.y);
-    if (dist < 42) {
+    item.phase += dt * 3.8;
+    item.mesh.position.y = item.y + Math.sin(item.phase) * 0.16;
+    item.mesh.rotation.y += dt * 2.2;
+
+    const d = Math.hypot(turkey.x - item.x, (turkey.y + 0.72) - item.mesh.position.y, turkey.z - item.z);
+    if (d < 1.25) {
       item.collected = true;
-      turkey.stamina = Math.min(PHYSICS.staminaMax, turkey.stamina + (item.kind === 'goldenFeather' ? 45 : 18));
+      item.mesh.visible = false;
+      turkey.stamina = Math.min(turkey.maxStamina, turkey.stamina + (item.kind === 'goldenFeather' ? 45 : 18));
       if (item.kind === 'goldenFeather' && turkey.lives < turkey.maxLives) {
         turkey.lives += 1;
       }
-      particles.spawnSparkles(item.x, item.y, item.kind === 'goldenFeather' ? 14 : 7,
-        item.kind === 'cranberry' ? '#ff4f5a' : PALETTE.gold);
-      onPickup(item);
+      effects.spawnFeathers(item.x, item.y, item.z, item.kind === 'goldenFeather' ? 8 : 3, 4.0);
       audio.playPickup(1);
+      onPickup(item);
     }
   }
 }
