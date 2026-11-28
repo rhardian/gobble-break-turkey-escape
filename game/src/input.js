@@ -1,116 +1,95 @@
-// Unified 3D Keyboard + Mouse input handler (WASD/Arrows 8-dir movement, Jump/Flutter, Dash, Hide, Kick, Perks).
+// Responsive keyboard & mouse controller mapped to 3/4 side-view 3D diorama axes (+X forward, Z lane depth).
 
 import { VIEWPORT } from './config.js';
 
 export class InputController {
-  constructor(canvas, onInteract) {
+  constructor(canvas, onFirstGesture) {
     this.canvas = canvas;
-    this.onInteract = onInteract;
-    this.keys = new Set();
+    this.onFirstGesture = onFirstGesture;
+    this.down = new Set();
     this.justPressed = new Set();
-    this.pointer = { x: VIEWPORT.width * 0.5, y: VIEWPORT.height * 0.5, down: false, rightDown: false };
     this.clicks = [];
-    this._bind();
+    this.rightClicks = [];
+    this.pointer = { x: VIEWPORT.width * 0.5, y: VIEWPORT.height * 0.5 };
+    this._unlocked = false;
+    this._bindEvents();
   }
 
-  _bind() {
-    window.addEventListener('keydown', (e) => {
-      const code = e.code;
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) {
-        e.preventDefault();
-      }
-      if (!this.keys.has(code)) {
-        this.justPressed.add(code);
-        if (this.onInteract) this.onInteract();
-      }
-      this.keys.add(code);
-    }, { passive: false });
-
-    window.addEventListener('keyup', (e) => {
-      this.keys.delete(e.code);
-    });
-
-    window.addEventListener('blur', () => {
-      this.keys.clear();
-      this.pointer.down = false;
-      this.pointer.rightDown = false;
-    });
-
-    this.canvas.addEventListener('mousemove', (e) => {
-      const p = this._coords(e);
-      this.pointer.x = p.x;
-      this.pointer.y = p.y;
-    });
-
-    this.canvas.addEventListener('mousedown', (e) => {
-      this.canvas.focus();
-      if (this.onInteract) this.onInteract();
-      const p = this._coords(e);
-      this.pointer.x = p.x;
-      this.pointer.y = p.y;
-      if (e.button === 2) {
-        this.pointer.rightDown = true;
-        this.justPressed.add('MouseRight');
-      } else if (e.button === 0) {
-        this.pointer.down = true;
-        this.clicks.push(p);
-      }
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 2) this.pointer.rightDown = false;
-      if (e.button === 0) this.pointer.down = false;
-    });
-
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  _notifyGesture() {
+    if (!this._unlocked && this.onFirstGesture) {
+      this._unlocked = true;
+      this.onFirstGesture();
+    }
   }
 
-  _coords(e) {
-    const r = this.canvas.getBoundingClientRect();
+  _canvasCoords(e) {
+    const rect = this.canvas.getBoundingClientRect();
     return {
-      x: (e.clientX - r.left) * (VIEWPORT.width / Math.max(1, r.width)),
-      y: (e.clientY - r.top) * (VIEWPORT.height / Math.max(1, r.height)),
+      x: ((e.clientX - rect.left) / Math.max(1, rect.width)) * VIEWPORT.width,
+      y: ((e.clientY - rect.top) / Math.max(1, rect.height)) * VIEWPORT.height,
     };
   }
 
+  _bindEvents() {
+    const preventKeys = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+    window.addEventListener('keydown', (e) => {
+      if (preventKeys.has(e.code)) e.preventDefault();
+      this._notifyGesture();
+      if (!this.down.has(e.code)) this.justPressed.add(e.code);
+      this.down.add(e.code);
+    });
+    window.addEventListener('keyup', (e) => this.down.delete(e.code));
+    window.addEventListener('blur', () => {
+      this.down.clear();
+      this.justPressed.clear();
+    });
+    this.canvas.addEventListener('mousemove', (e) => {
+      this.pointer = this._canvasCoords(e);
+    });
+    this.canvas.addEventListener('mousedown', (e) => {
+      this._notifyGesture();
+      const pt = this._canvasCoords(e);
+      this.pointer = pt;
+      if (e.button === 0) this.clicks.push(pt);
+      else if (e.button === 2) this.rightClicks.push(pt);
+    });
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
   isDown(...codes) {
-    return codes.some((c) => this.keys.has(c));
+    return codes.some((c) => this.down.has(c));
   }
 
   wasPressed(...codes) {
     return codes.some((c) => this.justPressed.has(c));
   }
 
-  // 3D movement vector: X (-1 left .. +1 right across courtyard), Z (+1 forward down escape course .. -1 back)
+  // +X = right/forward along escape course; -Z = back lane (Up/W), +Z = front lane (Down/S)
   getMoveVector3D() {
-    // Camera looks toward +Z from behind, with X to screen-left/right:
-    // D / Right moves screen-right (-X in world when camera faces +Z? Let's define camera at (0, +Y, Z-12) looking at (0, 0, Z+6):
-    // In Three.js right-handed coords: camera at (0, 8, -12) looking at (0, 0, +6) has +X pointing SCREEN-LEFT!
-    // So screen-right = -X, screen-left = +X, forward = +Z, backward = -Z!
-    const right = this.isDown('KeyD', 'ArrowRight') ? 1 : 0;
-    const left = this.isDown('KeyA', 'ArrowLeft') ? 1 : 0;
-    const forward = this.isDown('KeyW', 'ArrowUp') ? 1 : 0;
-    const back = this.isDown('KeyS', 'ArrowDown') ? 1 : 0;
-    let x = left - right;
-    let z = forward - back;
-    const len = Math.hypot(x, z);
-    if (len > 1) {
-      x /= len;
-      z /= len;
+    let x = 0;
+    let z = 0;
+    if (this.isDown('KeyD', 'ArrowRight')) x += 1;
+    if (this.isDown('KeyA', 'ArrowLeft')) x -= 1;
+    if (this.isDown('KeyW', 'ArrowUp')) z -= 1;
+    if (this.isDown('KeyS', 'ArrowDown')) z += 1;
+    const mag = Math.hypot(x, z);
+    if (mag > 1) {
+      x /= mag;
+      z /= mag;
     }
     return { x, z };
-  }
-
-  isJumpHeld() {
-    return this.isDown('Space');
   }
 
   wasJumpPressed() {
     return this.wasPressed('Space');
   }
 
+  isJumpHeld() {
+    return this.isDown('Space');
+  }
+
   wasDashPressed() {
-    return this.wasPressed('ShiftLeft', 'ShiftRight', 'KeyJ');
+    return this.wasPressed('ShiftLeft', 'ShiftRight', 'KeyK');
   }
 
   isHideHeld() {
@@ -118,7 +97,7 @@ export class InputController {
   }
 
   wasKickPressed() {
-    return this.wasPressed('KeyF', 'KeyK', 'MouseRight');
+    return this.wasPressed('KeyF', 'KeyG', 'KeyJ') || this.rightClicks.length > 0;
   }
 
   wasPausePressed() {
@@ -134,7 +113,6 @@ export class InputController {
   }
 
   consumeClicks() {
-    if (!this.clicks.length) return [];
     const out = this.clicks.slice();
     this.clicks.length = 0;
     return out;
@@ -142,5 +120,7 @@ export class InputController {
 
   endFrame() {
     this.justPressed.clear();
+    this.clicks.length = 0;
+    this.rightClicks.length = 0;
   }
 }

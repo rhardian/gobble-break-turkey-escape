@@ -1,4 +1,4 @@
-// Crisp 2D Canvas HUD, 3D-projected diegetic callouts, Perk Draft cards, Title Crest, and Split-Showcase End Screens.
+// Crisp Storybook 2D Canvas HUD, High-Readability Title Crest, 3D Diegetic Callouts, Perk Draft, and Split-Showcase Victory Card.
 
 import * as THREE from 'three';
 import { PALETTE, STAGE_DEFS, VIEWPORT } from './config.js';
@@ -19,8 +19,8 @@ export function getOverlayButtons(mode, perkChoices = []) {
   const cx = VIEWPORT.width * 0.5;
   if (mode === 'title') {
     return [
-      { id: 'play_story', label: 'PLAY 3D ESCAPE', sub: '4 STAGES + PERKS', x: cx - 246, y: 206, w: 236, h: 62, primary: true },
-      { id: 'play_endless', label: 'ENDLESS FEAST', sub: 'HIGH-SCORE GAUNTLET', x: cx + 10, y: 206, w: 236, h: 62, primary: false },
+      { id: 'play_story', label: 'PLAY ESCAPE', sub: '4 STAGES · PERKS', x: cx - 238, y: 180, w: 228, h: 58, primary: true },
+      { id: 'play_endless', label: 'ENDLESS RUN', sub: 'SCORE GAUNTLET', x: cx + 10, y: 180, w: 228, h: 58, primary: false },
     ];
   }
   if (mode === 'perk_draft') {
@@ -43,7 +43,6 @@ export function getOverlayButtons(mode, perkChoices = []) {
     ];
   }
   if (mode === 'caught' || mode === 'escaped') {
-    // Positioned cleanly on the right-hand Split-Showcase Victory/Caught card!
     const cardCx = 918;
     return [
       { id: 'restart', label: 'PLAY AGAIN', sub: 'SPACE / R', x: cardCx - 242, y: 536, w: 232, h: 64, primary: true },
@@ -69,13 +68,13 @@ export function hitTestButtons(buttons, px, py) {
 
 export function renderWorldCallouts(ctx, state) {
   const { camera, farmer, turkey, stage, effects } = state;
-  const minBadgeY = state.mode === 'title' ? 286 : 104;
-  const maxBadgeX = state.mode === 'caught' || state.mode === 'escaped' ? 560 : VIEWPORT.width - 40;
+  const minBadgeY = state.mode === 'title' ? 256 : 108;
+  const maxBadgeX = state.mode === 'caught' || state.mode === 'escaped' ? 580 : VIEWPORT.width - 50;
 
-  // Farmer / Chef Jeb 3D overhead alert / search speech pill
+  // Farmer / Chef Jeb 3D overhead speech pill
   if (farmer) {
-    const pos = projectToScreen(camera, farmer.x, 3.25, farmer.z);
-    if (pos && pos.y > minBadgeY - 36 && pos.y < VIEWPORT.height - 54 && pos.x > 40 && pos.x < maxBadgeX) {
+    const pos = projectToScreen(camera, farmer.x, 3.65, farmer.z);
+    if (pos && pos.y > minBadgeY - 40 && pos.y < VIEWPORT.height - 56 && pos.x > 60 && pos.x < maxBadgeX) {
       const py = Math.max(minBadgeY, pos.y);
       if (farmer.state === 'stunned' || farmer.state === 'blind') {
         drawWorldBadge(ctx, pos.x, py, farmer.state === 'blind' ? 'ACHOO! BLINDED!' : 'STUNNED!', '#3a1c0f', '#ffe38c', '#ffd24d');
@@ -89,45 +88,49 @@ export function renderWorldCallouts(ctx, state) {
 
   if (state.mode === 'caught' || state.mode === 'escaped') return;
 
-  // Hiding / Nearby 3D Cover badge
+  // Cover prompt & active hiding badge
   if (turkey && stage) {
     if (turkey.hiding && turkey.hideCover) {
-      const p = projectToScreen(camera, turkey.hideCover.x, 2.2, turkey.hideCover.z);
+      const p = projectToScreen(camera, turkey.hideCover.x, 2.35, turkey.hideCover.z);
       if (p && p.y > minBadgeY) drawWorldBadge(ctx, p.x, p.y, 'HIDDEN! (RELEASE TO AMBUSH)', '#2e8b38', '#ffffff', '#b8ff94');
     } else if (state.mode === 'playing') {
       for (const c of stage.covers) {
-        if (Math.hypot(turkey.x - c.x, turkey.z - c.z) < 3.4) {
-          const p = projectToScreen(camera, c.x, 2.1, c.z);
-          if (p && p.y > minBadgeY) drawWorldBadge(ctx, p.x, p.y, '[E] HIDE IN COVER', 'rgba(36, 14, 6, 0.88)', '#ffe8a3', PALETTE.gold);
+        if (Math.hypot(turkey.x - c.x, turkey.z - c.z) < 5.2) {
+          const p = projectToScreen(camera, c.x, 2.25, c.z);
+          if (p && p.x > 70 && p.x < VIEWPORT.width - 70 && p.y > minBadgeY) {
+            drawWorldBadge(ctx, p.x, p.y, '[E] HIDE IN COVER', 'rgba(36, 14, 6, 0.9)', '#ffe8a3', PALETTE.gold);
+          }
           break;
         }
       }
     }
 
-    // Roaring 450°F Oven badges
-    for (const oven of stage.ovens) {
-      if (Math.abs(oven.z - turkey.z) > 26) continue;
-      if (oven.state === 'blast' || oven.state === 'telegraph') {
-        const p = projectToScreen(camera, oven.x, 3.05, oven.z);
-        if (p && p.x > 60 && p.x < maxBadgeX && p.y > minBadgeY - 30) {
-          drawWorldBadge(
-            ctx,
-            p.x,
-            Math.max(minBadgeY, p.y),
-            oven.state === 'blast' ? '450°F OVEN FIRE!' : '450°F HEATING!',
-            oven.state === 'blast' ? '#de2612' : '#eb781b',
-            '#fff8dc',
-            '#ffd85c',
-          );
+    // Roaring 450°F Oven badges (gameplay only; title screen showcases the built-in 3D illuminated 450°F plaque!)
+    if (state.mode === 'playing') {
+      for (const oven of stage.ovens) {
+        if (Math.abs(oven.x - turkey.x) > 12) continue;
+        if (oven.state === 'blast' || oven.state === 'telegraph') {
+          const p = projectToScreen(camera, oven.x, 3.65, oven.z);
+          if (p && p.x > 70 && p.x < maxBadgeX && p.y > minBadgeY - 35) {
+            drawWorldBadge(
+              ctx,
+              p.x,
+              Math.max(minBadgeY, p.y),
+              oven.state === 'blast' ? '450°F OVEN FIRE!' : '450°F HEATING!',
+              oven.state === 'blast' ? '#de2612' : '#eb781b',
+              '#fff8dc',
+              '#ffd85c',
+            );
+          }
         }
       }
     }
 
-    // Exit / Freedom Gate beacon label when within view
-    if (stage.exitZ - turkey.z < 36) {
-      const gp = projectToScreen(camera, 0, 5.3, stage.exitZ);
-      if (gp && gp.y > 95) {
-        const labels = ['TO TIMBER BARN →', 'TO ROASTING KITCHEN →', 'TO GRAND BANQUET →', '★ FREEDOM EXIT! ★'];
+    // Exit / Freedom Gate beacon
+    if (stage.exitX - turkey.x < 16) {
+      const gp = projectToScreen(camera, stage.exitX, 5.4, 0);
+      if (gp && gp.y > minBadgeY && gp.x < VIEWPORT.width - 80) {
+        const labels = ['TO TIMBER BARN →', 'TO 450°F KITCHEN →', 'TO GRAND BANQUET →', '★ FREEDOM DOORS! ★'];
         drawWorldBadge(ctx, gp.x, gp.y, labels[stage.index] || 'EXIT', '#2e8b38', '#fffbe6', '#ffd85c');
       }
     }
@@ -142,9 +145,9 @@ export function renderWorldCallouts(ctx, state) {
     ctx.globalAlpha = alpha;
     ctx.translate(p.x, p.y);
     ctx.scale(c.scale, c.scale);
-    ctx.font = '900 25px "Trebuchet MS", "Segoe UI", sans-serif';
+    ctx.font = '900 28px "Trebuchet MS", "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 7;
+    ctx.lineWidth = 7.5;
     ctx.strokeStyle = PALETTE.ink;
     ctx.strokeText(c.text, 0, 0);
     ctx.fillStyle = c.color;
@@ -156,61 +159,61 @@ export function renderWorldCallouts(ctx, state) {
 export function renderHudOverlay(ctx, state) {
   const { turkey, farmer, stage, score, combo, distanceMeters, totalEscapeMeters, audio, perks } = state;
 
-  // --- TOP-LEFT: SCORE, COMBO & FEATHER LIVES ---
-  drawCarvedPanel(ctx, 18, 12, 306, 88);
+  // --- TOP-LEFT: CHUNKY HIGH-CONTRAST SCORE, COMBO & FEATHER LIVES ---
+  drawCarvedPanel(ctx, 16, 12, 314, 90);
   ctx.fillStyle = '#f7ce74';
-  ctx.font = '900 12px "Trebuchet MS", sans-serif';
+  ctx.font = '900 13px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('SCORE', 34, 34);
+  ctx.fillText('SCORE', 32, 34);
 
   ctx.fillStyle = PALETTE.cream;
-  ctx.font = '900 34px "Trebuchet MS", sans-serif';
-  ctx.fillText(String(Math.floor(score)).padStart(5, '0'), 34, 70);
+  ctx.font = '900 36px "Trebuchet MS", sans-serif';
+  ctx.fillText(String(Math.floor(score)).padStart(5, '0'), 32, 74);
 
   if (combo > 1) {
-    const pillG = ctx.createLinearGradient(142, 20, 142, 44);
-    pillG.addColorStop(0, '#ff8833');
+    const pillG = ctx.createLinearGradient(148, 20, 148, 45);
+    pillG.addColorStop(0, '#ff8c33');
     pillG.addColorStop(1, '#cf2a1b');
     ctx.fillStyle = pillG;
     ctx.strokeStyle = '#ffe599';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(142, 20, 74, 24, 12); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.roundRect(148, 20, 74, 25, 12); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fffbe8';
-    ctx.font = '900 13px "Trebuchet MS", sans-serif';
+    ctx.font = '900 13.5px "Trebuchet MS", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`x${combo} HOT!`, 179, 36);
+    ctx.fillText(`x${combo} HOT!`, 185, 37);
   }
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#f7ce74';
-  ctx.font = '900 12px "Trebuchet MS", sans-serif';
-  ctx.fillText('LIVES', 228, 34);
+  ctx.font = '900 13px "Trebuchet MS", sans-serif';
+  ctx.fillText('LIVES', 234, 34);
   for (let i = 0; i < Math.min(4, turkey.maxLives); i++) {
-    drawSculptedFeather(ctx, 238 + i * 22, 64, i < turkey.lives);
+    drawSculptedFeather(ctx, 244 + i * 22, 65, i < turkey.lives);
   }
 
-  // --- TOP-CENTER: 4-STAGE PROGRESS & DISTANCE RAIL ---
-  const mapW = 484;
+  // --- TOP-CENTER: 4-STAGE PROGRESS & DISTANCE TRACK ---
+  const mapW = 492;
   const mapX = (VIEWPORT.width - mapW) * 0.5;
-  drawCarvedPanel(ctx, mapX, 12, mapW, 88);
+  drawCarvedPanel(ctx, mapX, 12, mapW, 90);
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffe89e';
-  ctx.font = '900 15px "Trebuchet MS", sans-serif';
+  ctx.font = '900 16px "Trebuchet MS", sans-serif';
   const stageHeader = state.endless
-    ? `ENDLESS 3D · STAGE ${stage.index + 1}: ${stage.name.toUpperCase()} · ${Math.floor(distanceMeters)}m`
+    ? `ENDLESS · STAGE ${stage.index + 1}: ${stage.name.toUpperCase()} · ${Math.floor(distanceMeters)}m`
     : `STAGE ${stage.index + 1}/4: ${stage.name.toUpperCase()} · ${Math.floor(distanceMeters)}m / ${totalEscapeMeters}m`;
-  ctx.fillText(stageHeader, VIEWPORT.width * 0.5, 36);
+  ctx.fillText(stageHeader, VIEWPORT.width * 0.5, 37);
 
   const railX = mapX + 30;
   const railW = mapW - 60;
-  const railY = 58;
+  const railY = 60;
   ctx.fillStyle = '#1f0d06';
-  ctx.strokeStyle = 'rgba(245, 184, 61, 0.35)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(245, 184, 61, 0.4)';
+  ctx.lineWidth = 1.8;
   ctx.beginPath(); ctx.roundRect(railX, railY - 6, railW, 12, 6); ctx.fill(); ctx.stroke();
 
-  const stageFrac = Math.max(0, Math.min(1, turkey.z / stage.exitZ));
+  const stageFrac = Math.max(0, Math.min(1, turkey.x / stage.exitX));
   const totalFrac = state.endless ? stageFrac : (stage.index + stageFrac) / STAGE_DEFS.length;
   const fillG = ctx.createLinearGradient(railX, railY, railX + railW, railY);
   fillG.addColorStop(0, '#eb7b22');
@@ -218,52 +221,51 @@ export function renderHudOverlay(ctx, state) {
   ctx.fillStyle = fillG;
   ctx.beginPath(); ctx.roundRect(railX + 1, railY - 5, Math.max(8, (railW - 2) * totalFrac), 10, 5); ctx.fill();
 
-  ctx.font = '800 10px "Trebuchet MS", sans-serif';
+  ctx.font = '800 10.5px "Trebuchet MS", sans-serif';
   const labels = ['FARMYARD', 'BARN', 'KITCHEN', 'BANQUET', 'FREEDOM'];
   for (let i = 0; i < labels.length; i++) {
     const tx = railX + (railW * i) / 4;
-    ctx.fillStyle = i <= stage.index ? '#ffe69e' : 'rgba(245, 225, 184, 0.52)';
-    ctx.fillText(labels[i], tx, railY + 25);
+    ctx.fillStyle = i <= stage.index ? '#ffe69e' : 'rgba(245, 225, 184, 0.55)';
+    ctx.fillText(labels[i], tx, railY + 26);
   }
 
   const farmerFrac = state.endless
-    ? Math.max(0, Math.min(1, farmer.z / stage.exitZ))
-    : Math.max(0, Math.min(1, (stage.index + farmer.z / stage.exitZ) / STAGE_DEFS.length));
+    ? Math.max(0, Math.min(1, farmer.x / stage.exitX))
+    : Math.max(0, Math.min(1, (stage.index + farmer.x / stage.exitX) / STAGE_DEFS.length));
   drawTrackPin(ctx, railX + railW * farmerFrac, railY, '#d92818', 'J');
   drawTrackPin(ctx, railX + railW * totalFrac, railY, '#f7b831', 'T');
 
-  // --- TOP-RIGHT: STAMINA, ACTIVE PERKS & VECTOR BUTTONS ---
-  drawCarvedPanel(ctx, VIEWPORT.width - 334, 12, 316, 88);
+  // --- TOP-RIGHT: STAMINA, ACTIVE PERKS & AUDIO/PAUSE ---
+  drawCarvedPanel(ctx, VIEWPORT.width - 332, 12, 316, 90);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#f7ce74';
-  ctx.font = '900 12px "Trebuchet MS", sans-serif';
+  ctx.font = '900 13px "Trebuchet MS", sans-serif';
   const perkCount = perks.size;
-  ctx.fillText(perkCount > 0 ? `FLUTTER & DASH · ${perkCount} PERK${perkCount > 1 ? 'S' : ''}` : 'FLUTTER & DASH', VIEWPORT.width - 318, 34);
+  ctx.fillText(perkCount > 0 ? `FLUTTER & DASH · ${perkCount} PERK${perkCount > 1 ? 'S' : ''}` : 'FLUTTER & DASH', VIEWPORT.width - 316, 34);
 
-  const barX = VIEWPORT.width - 318;
+  const barX = VIEWPORT.width - 316;
   const barY = 44;
-  const barW = 192;
+  const barW = 190;
   ctx.fillStyle = '#1f0d06';
-  ctx.strokeStyle = 'rgba(245, 184, 61, 0.35)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(barX, barY, barW, 18, 9); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(245, 184, 61, 0.4)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.roundRect(barX, barY, barW, 19, 9); ctx.fill(); ctx.stroke();
 
   const stamFrac = turkey.stamina / turkey.maxStamina;
   const stamG = ctx.createLinearGradient(barX, barY, barX + barW, barY);
   stamG.addColorStop(0, '#f28b24');
   stamG.addColorStop(1, '#ffe87c');
   ctx.fillStyle = stamG;
-  ctx.beginPath(); ctx.roundRect(barX + 2, barY + 2, Math.max(0, (barW - 4) * stamFrac), 14, 7); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(barX + 2, barY + 2, Math.max(0, (barW - 4) * stamFrac), 15, 7); ctx.fill();
 
   ctx.fillStyle = '#f5e1b8';
   ctx.font = '800 10.5px "Trebuchet MS", sans-serif';
-  ctx.fillText('WASD Move · SPACE Flutter · SHIFT Dash · E Hide · F Kick', VIEWPORT.width - 318, 84);
+  ctx.fillText('WASD Run · SPACE Flutter · SHIFT Dash · E Hide · F Kick', VIEWPORT.width - 316, 86);
 
   const hudBtns = getHudButtons();
   drawSpeakerIconButton(ctx, hudBtns[0], audio.muted);
   drawPauseIconButton(ctx, hudBtns[1]);
 
-  // Stage transition ribbon
   if (state.stageBannerTimer > 0) {
     ctx.save();
     ctx.globalAlpha = Math.min(1, state.stageBannerTimer * 1.4);
@@ -284,65 +286,63 @@ export function renderHudOverlay(ctx, state) {
 export function renderTitleScreen(ctx, state, pointer, time) {
   const cx = VIEWPORT.width * 0.5;
 
-  // Compact top atmospheric gradient leaving the 3D Pixar diorama wide open below!
-  const topShade = ctx.createLinearGradient(0, 0, 0, 290);
-  topShade.addColorStop(0, 'rgba(20, 7, 3, 0.72)');
-  topShade.addColorStop(0.7, 'rgba(20, 7, 3, 0.22)');
-  topShade.addColorStop(1, 'rgba(20, 7, 3, 0)');
+  // Soft warm atmospheric sky vignette at top (leaves 62% of screen wide open for the Pixar 3D diorama!)
+  const topShade = ctx.createLinearGradient(0, 0, 0, 240);
+  topShade.addColorStop(0, 'rgba(26, 9, 4, 0.56)');
+  topShade.addColorStop(0.75, 'rgba(26, 9, 4, 0.14)');
+  topShade.addColorStop(1, 'rgba(26, 9, 4, 0)');
   ctx.fillStyle = topShade;
-  ctx.fillRect(0, 0, VIEWPORT.width, 290);
+  ctx.fillRect(0, 0, VIEWPORT.width, 240);
 
-  const crestW = 760;
+  // Hand-Crafted Rustic Autumn Wood-and-Brass Emblem Banner (compact & sculptural!)
+  const crestW = 736;
   const crestX = cx - crestW * 0.5;
-  drawCarvedPanel(ctx, crestX, 16, crestW, 174, 22);
-  drawCornerMapleLeaf(ctx, crestX + 28, 42, -0.4);
-  drawCornerMapleLeaf(ctx, crestX + crestW - 28, 42, 0.4);
+  drawCarvedPanel(ctx, crestX, 14, crestW, 154, 22);
+  drawCornerMapleLeaf(ctx, crestX + 30, 42, -0.42);
+  drawCornerMapleLeaf(ctx, crestX + crestW - 30, 42, 0.42);
 
-  // Tagline ribbon
-  const ribG = ctx.createLinearGradient(0, 30, 0, 56);
-  ribG.addColorStop(0, '#e33b24');
-  ribG.addColorStop(1, '#9c1c12');
+  // Crimson Ribbon Subtitle
+  const ribG = ctx.createLinearGradient(0, 24, 0, 48);
+  ribG.addColorStop(0, '#e83d23');
+  ribG.addColorStop(1, '#9e1c11');
   ctx.fillStyle = ribG;
-  ctx.strokeStyle = '#ffd573';
+  ctx.strokeStyle = '#ffd878';
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(cx - 196, 30, 392, 26, 13); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#fff7e0';
+  ctx.beginPath(); ctx.roundRect(cx - 190, 24, 380, 24, 12); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff8e2';
   ctx.font = '900 12.5px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('THE GREAT 3D THANKSGIVING ESCAPE', cx, 48);
+  ctx.fillText('THE GREAT THANKSGIVING ESCAPE', cx, 41);
 
-  // Hero Carved-Gold Title
-  const bob = Math.sin(time * 3) * 2;
-  ctx.font = '900 78px "Trebuchet MS", Impact, sans-serif';
-  ctx.lineWidth = 13;
+  // Bold Carved Metallic-Gold Logo with Deep Drop Shadow
+  const bob = Math.sin(time * 3) * 1.8;
+  ctx.font = '900 76px "Trebuchet MS", Impact, sans-serif';
+  ctx.lineWidth = 14;
   ctx.strokeStyle = PALETTE.ink;
-  ctx.strokeText('GOBBLE BREAK', cx, 126 + bob);
+  ctx.strokeText('GOBBLE BREAK', cx, 118 + bob);
 
-  const titleG = ctx.createLinearGradient(0, 62, 0, 136);
-  titleG.addColorStop(0, '#fff9d6');
-  titleG.addColorStop(0.45, '#ffca45');
-  titleG.addColorStop(1, '#cf4514');
+  const titleG = ctx.createLinearGradient(0, 56, 0, 126);
+  titleG.addColorStop(0, '#fffbe0');
+  titleG.addColorStop(0.45, '#ffce4a');
+  titleG.addColorStop(1, '#d14312');
   ctx.fillStyle = titleG;
-  ctx.fillText('GOBBLE BREAK', cx, 126 + bob);
+  ctx.fillText('GOBBLE BREAK', cx, 118 + bob);
 
-  ctx.fillStyle = '#fae8c4';
-  ctx.font = '700 15px "Trebuchet MS", sans-serif';
-  ctx.fillText('Outrun Farmer Jeb  ·  Dodge 450°F Ovens & Carving Knives  ·  Unlock Escape Perks!', cx, 156);
-
-  ctx.fillStyle = '#ffd978';
-  ctx.font = '800 13px "Trebuchet MS", sans-serif';
-  ctx.fillText(`BEST SCORE: ${state.bestScore}   ·   PRESS SPACE OR CLICK TO START`, cx, 178);
+  ctx.fillStyle = '#fce8c5';
+  ctx.font = '800 14.5px "Trebuchet MS", sans-serif';
+  ctx.fillText('Outrun Farmer Jeb  ·  Leap 450°F Ovens & Carving Knives  ·  Unlock Escape Perks!', cx, 150);
 
   for (const btn of getOverlayButtons('title')) {
     drawMenuButton(ctx, btn, hitTestButtons([btn], pointer.x, pointer.y) !== null, time);
   }
 
-  // Bottom sleek carved control bar
-  drawCarvedPanel(ctx, cx - 472, VIEWPORT.height - 50, 944, 36, 18);
-  ctx.fillStyle = '#ffecc2';
-  ctx.font = '800 13.5px "Trebuchet MS", sans-serif';
+  // Sleek bottom control strip
+  drawCarvedPanel(ctx, cx - 472, VIEWPORT.height - 46, 944, 34, 17);
+  ctx.fillStyle = '#ffedc4';
+  ctx.font = '800 13px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('WASD / Arrows 3D Run  ·  SPACE Jump & Flutter  ·  SHIFT / Click Dash  ·  E Hide in Cover  ·  F / Right-Click Kick Prop & Gobble', cx, VIEWPORT.height - 27);
+  ctx.fillText('WASD / Arrows Run & Weave  ·  SPACE Jump & Flutter  ·  SHIFT / Click Dash  ·  E Hide in Cover  ·  F / Right-Click Kick Flour & Gobble', cx, VIEWPORT.height - 24);
+  void state;
 }
 
 export function renderPerkDraftOverlay(ctx, state, pointer, time) {
@@ -354,13 +354,12 @@ export function renderPerkDraftOverlay(ctx, state, pointer, time) {
   ctx.textAlign = 'center';
   ctx.fillStyle = PALETTE.gold;
   ctx.font = '900 36px "Trebuchet MS", sans-serif';
-  ctx.fillText(`ZONE CLEARED! PICK AN ESCAPE PERK`, cx, 168);
+  ctx.fillText('ZONE CLEARED! PICK AN ESCAPE PERK', cx, 168);
   ctx.fillStyle = PALETTE.cream;
   ctx.font = '700 16px "Trebuchet MS", sans-serif';
   ctx.fillText('Click a card or press [1]  [2]  [3] to power up Barnaby for the next stage!', cx, 202);
 
-  const cards = getOverlayButtons('perk_draft', state.perkChoices);
-  for (const card of cards) {
+  for (const card of getOverlayButtons('perk_draft', state.perkChoices)) {
     const hovered = hitTestButtons([card], pointer.x, pointer.y) !== null;
     ctx.save();
     ctx.translate(0, hovered ? -5 : 0);
@@ -413,10 +412,10 @@ export function renderPauseScreen(ctx, pointer, time) {
 export function renderEndScreen(ctx, state, parchmentPattern, pointer, time) {
   const isWin = state.mode === 'escaped';
 
-  // Subtle right-side gradient keeping the LEFT 50% 3D Podium Scene completely crisp & bright!
-  const shade = ctx.createLinearGradient(440, 0, VIEWPORT.width, 0);
+  // Soft right-side vignette keeping the LEFT 50% Victory Podium completely bright & unobstructed!
+  const shade = ctx.createLinearGradient(460, 0, VIEWPORT.width, 0);
   shade.addColorStop(0, 'rgba(20, 8, 4, 0)');
-  shade.addColorStop(0.35, 'rgba(20, 8, 4, 0.55)');
+  shade.addColorStop(0.36, 'rgba(20, 8, 4, 0.5)');
   shade.addColorStop(1, 'rgba(20, 8, 4, 0.78)');
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, VIEWPORT.width, VIEWPORT.height);
@@ -443,7 +442,6 @@ export function renderEndScreen(ctx, state, parchmentPattern, pointer, time) {
   ctx.lineWidth = 2.5;
   ctx.stroke();
 
-  // Embossed Header Ribbon
   const headG = ctx.createLinearGradient(0, cardY - 28, 0, cardY + 44);
   if (isWin) {
     headG.addColorStop(0, '#3ca342');
@@ -469,11 +467,10 @@ export function renderEndScreen(ctx, state, parchmentPattern, pointer, time) {
   ctx.fillStyle = '#522510';
   ctx.font = '800 16px "Trebuchet MS", sans-serif';
   const flavor = isWin
-    ? 'Barnaby smashed out the Banquet Gate — Thanksgiving is saved!'
+    ? 'Barnaby smashed out the Banquet Doors — Thanksgiving is saved!'
     : state.caughtReason || 'Farmer Jeb rang the dinner bell — run again & outsmart him!';
   ctx.fillText(flavor, cardCx, cardY + 82);
 
-  // Rank Medal Seal
   const rank = state.score >= 5400 ? 'S+' : state.score >= 4200 ? 'S' : state.score >= 2800 ? 'A' : 'B';
   ctx.save();
   ctx.translate(cardX + 86, cardY + 206);
@@ -493,7 +490,6 @@ export function renderEndScreen(ctx, state, parchmentPattern, pointer, time) {
   ctx.fillText(badgeTxt, 0, 20);
   ctx.restore();
 
-  // 2x2 Stats Grid
   const stats = [
     { label: 'FINAL SCORE', value: String(Math.floor(state.score)) },
     { label: 'BEST SCORE', value: String(Math.floor(state.bestScore)) },
@@ -533,16 +529,16 @@ export function renderEndScreen(ctx, state, parchmentPattern, pointer, time) {
 
 function drawWorldBadge(ctx, x, y, text, bg, fg, border) {
   ctx.save();
-  ctx.font = '900 13px "Trebuchet MS", "Segoe UI", sans-serif';
-  const w = Math.max(72, ctx.measureText(text).width + 24);
-  const h = 26;
-  ctx.shadowColor = 'rgba(16, 6, 2, 0.55)';
-  ctx.shadowBlur = 8;
+  ctx.font = '900 14px "Trebuchet MS", "Segoe UI", sans-serif';
+  const w = Math.max(82, ctx.measureText(text).width + 26);
+  const h = 28;
+  ctx.shadowColor = 'rgba(16, 6, 2, 0.58)';
+  ctx.shadowBlur = 9;
   ctx.fillStyle = bg;
   ctx.strokeStyle = border;
-  ctx.lineWidth = 2.4;
+  ctx.lineWidth = 2.6;
   ctx.beginPath();
-  ctx.roundRect(x - w * 0.5, y - h * 0.5, w, h, 13);
+  ctx.roundRect(x - w * 0.5, y - h * 0.5, w, h, 14);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.stroke();
@@ -555,20 +551,20 @@ function drawWorldBadge(ctx, x, y, text, bg, fg, border) {
 
 function drawCarvedPanel(ctx, x, y, w, h, radius = 15) {
   ctx.save();
-  ctx.shadowColor = 'rgba(14, 5, 2, 0.56)';
+  ctx.shadowColor = 'rgba(14, 5, 2, 0.58)';
   ctx.shadowBlur = 12;
   ctx.shadowOffsetY = 4;
   const g = ctx.createLinearGradient(x, y, x, y + h);
-  g.addColorStop(0, 'rgba(66, 28, 12, 0.93)');
-  g.addColorStop(1, 'rgba(32, 13, 6, 0.94)');
+  g.addColorStop(0, 'rgba(74, 32, 14, 0.94)');
+  g.addColorStop(1, 'rgba(34, 14, 6, 0.95)');
   ctx.fillStyle = g;
-  ctx.strokeStyle = '#e5a63e';
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#edb044';
+  ctx.lineWidth = 3.2;
   ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(255, 228, 162, 0.25)';
+  ctx.strokeStyle = 'rgba(255, 232, 170, 0.28)';
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.roundRect(x + 5, y + 5, w - 10, h - 10, Math.max(4, radius - 4)); ctx.stroke();
   ctx.restore();
@@ -578,9 +574,9 @@ function drawCornerMapleLeaf(ctx, x, y, angle) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.fillStyle = '#ff9d2e';
-  ctx.strokeStyle = '#fff0ba';
-  ctx.lineWidth = 1.4;
+  ctx.fillStyle = '#ff9e2e';
+  ctx.strokeStyle = '#fff1bf';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(0, -15);
   ctx.lineTo(4, -7); ctx.lineTo(13, -9); ctx.lineTo(8, -1);
@@ -598,19 +594,19 @@ function drawSculptedFeather(ctx, x, y, filled) {
   ctx.translate(x, y);
   ctx.rotate(-0.34);
   if (filled) {
-    const fG = ctx.createLinearGradient(0, -15, 0, 15);
-    fG.addColorStop(0, '#fff2c2');
-    fG.addColorStop(0.35, '#f7b731');
-    fG.addColorStop(1, '#c94318');
+    const fG = ctx.createLinearGradient(0, -16, 0, 16);
+    fG.addColorStop(0, '#fff4c7');
+    fG.addColorStop(0.35, '#fabd33');
+    fG.addColorStop(1, '#cf4517');
     ctx.fillStyle = fG;
     ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, 7.6, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = 'rgba(255, 235, 200, 0.1)';
+    ctx.strokeStyle = 'rgba(255, 225, 175, 0.34)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(0, 0, 7.2, 15.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  } else {
-    ctx.fillStyle = 'rgba(255, 235, 200, 0.10)';
-    ctx.strokeStyle = 'rgba(255, 225, 175, 0.32)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(0, 0, 7, 15, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   ctx.restore();
 }
@@ -619,10 +615,10 @@ function drawTrackPin(ctx, x, y, color, letter) {
   ctx.save();
   ctx.fillStyle = color;
   ctx.strokeStyle = '#fff8e0';
-  ctx.lineWidth = 2.2;
-  ctx.beginPath(); ctx.arc(x, y, 10.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 11px "Trebuchet MS", sans-serif';
+  ctx.font = '900 11.5px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(letter, x, y + 1);
@@ -687,26 +683,26 @@ function drawMenuButton(ctx, btn, hovered, time) {
 
   const grad = ctx.createLinearGradient(0, -btn.h * 0.5, 0, btn.h * 0.5);
   if (btn.primary) {
-    grad.addColorStop(0, hovered ? '#ffea80' : '#ffcf4d');
-    grad.addColorStop(0.55, hovered ? '#f29024' : '#e07219');
-    grad.addColorStop(1, hovered ? '#cf5b10' : '#b3430e');
+    grad.addColorStop(0, hovered ? '#ffec85' : '#ffd252');
+    grad.addColorStop(0.55, hovered ? '#f59224' : '#e37419');
+    grad.addColorStop(1, hovered ? '#d15c10' : '#b5440e');
   } else {
-    grad.addColorStop(0, hovered ? '#8f4a24' : '#6e3417');
-    grad.addColorStop(1, hovered ? '#54230c' : '#3d1909');
+    grad.addColorStop(0, hovered ? '#944d26' : '#703517');
+    grad.addColorStop(1, hovered ? '#57240d' : '#3d1909');
   }
 
   ctx.fillStyle = grad;
-  ctx.strokeStyle = btn.primary ? '#fff7d6' : '#e0a23d';
+  ctx.strokeStyle = btn.primary ? '#fff8d9' : '#e6a840';
   ctx.lineWidth = 3.5;
   ctx.beginPath(); ctx.roundRect(-btn.w * 0.5, -btn.h * 0.5, btn.w, btn.h, 15); ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.stroke();
 
-  ctx.fillStyle = btn.primary ? 'rgba(255, 252, 232, 0.34)' : 'rgba(255, 230, 175, 0.14)';
+  ctx.fillStyle = btn.primary ? 'rgba(255, 253, 235, 0.36)' : 'rgba(255, 232, 178, 0.14)';
   ctx.beginPath(); ctx.roundRect(-btn.w * 0.5 + 8, -btn.h * 0.5 + 5, btn.w - 16, 11, 6); ctx.fill();
 
   ctx.textAlign = 'center';
-  ctx.fillStyle = btn.primary ? '#290f05' : '#fff4d6';
+  ctx.fillStyle = btn.primary ? '#290f05' : '#fff5d9';
   ctx.font = '900 21px "Trebuchet MS", sans-serif';
   ctx.fillText(btn.label, 0, btn.sub ? -2 : 7);
 

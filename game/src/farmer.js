@@ -1,210 +1,170 @@
-// 3D Multi-State Farmer Jeb / Chef Jeb AI: 3D flanking chase, volumetric vision cone, cover search, lunge & knife throws.
+// Farmer Jeb & Chef Jeb 3D AI: pursues along +X & Z, lunges, searches cover (?), throws forged knives, and stuns/blinds!
 
 import { SCORE_VALUES, WORLD } from './config.js';
 import { createCarvingKnifeMesh } from './models.js';
 import { damageTurkey3D } from './turkey.js';
 
-export function createFarmerState(rig, stage, startZ = 1.5) {
+export function createFarmerState(rig, stage, startX = 0.5) {
   return {
     rig,
-    x: 0,
+    x: startX,
     y: 0,
-    z: startZ,
+    z: 0.15,
     vx: 0,
     vz: 0,
-    yaw: 0,
-    outfit: stage.farmerOutfit,
-    state: 'chase', // chase | search | lunge | stunned | blind
+    yaw: 1.12, // Heroic 3/4 side-front pose facing right (+X) & slightly toward camera (+Z)!
+    state: 'chase', // chase | lunge | search | stunned | blind
     stateTimer: 0,
-    searchProgress: 0,
-    alertTimer: 1.5,
+    lungeCooldown: 2.0,
+    knifeTimer: stage.knifeInterval * 0.75,
+    alertTimer: 1.4,
     shoutText: stage.farmerOutfit === 'chef' ? 'INTO THE OVEN!' : 'DINNER TIME!',
-    knifeTimer: stage.farmerKnifeInterval * 0.72,
-    lungeCooldown: 2.2,
     runCycle: 0,
+    dizzyAngle: 0,
+    searchTarget: null,
   };
 }
 
 export function stunFarmer3D(farmer, kind, perks, audio, effects, onScore) {
   const isFlour = kind === 'flourSack';
-  const mult = perks.has('flour_blast') ? 1.5 : 1.0;
+  const mult = perks.has('flour_blast') ? 1.45 : 1.0;
   farmer.state = isFlour ? 'blind' : 'stunned';
-  farmer.stateTimer = (isFlour ? 2.5 : 1.8) * mult;
-  farmer.shoutText = isFlour ? 'ACHOO! MY EYES!' : 'OUCH! BLASTED BIRD!';
-  farmer.alertTimer = farmer.stateTimer;
-  farmer.rig.skinMat.color.setHex(isFlour ? 0xfaf6ee : 0xf2b88e);
-  audio.playBonk();
+  farmer.stateTimer = (isFlour ? 3.4 : 2.3) * mult;
+  farmer.vx = -2.4;
+  farmer.shoutText = isFlour ? 'ACHOO! BLINDED!' : 'OUCH! MY SHINS!';
 
   if (isFlour) {
-    effects.spawnFlourExplosion(farmer.x, 1.6, farmer.z, 20);
-    effects.triggerShake(0.32, 0.25);
-    onScore(SCORE_VALUES.flourBlind, 'FLOUR BOMB! +320', '#ffffff', farmer.x, 3.3, farmer.z);
+    audio.playFlourBurst();
+    effects.spawnFlourExplosion(farmer.x, 1.75, farmer.z, 18);
+    const pts = Math.round(SCORE_VALUES.flourBlind * (perks.has('flour_blast') ? 2 : 1));
+    onScore(pts, `FLOUR BLIND! +${pts}`, '#fffaf0', farmer.x, 3.25, farmer.z);
   } else {
-    effects.spawnFeathers(farmer.x, 2.2, farmer.z, 10, 5.0);
-    effects.triggerShake(0.28, 0.22);
-    onScore(SCORE_VALUES.farmerStun, 'BONKED! +250', '#ffd85c', farmer.x, 3.3, farmer.z);
+    audio.playBonk();
+    effects.spawnFeathers(farmer.x, 1.75, farmer.z, 10, 5.0);
+    onScore(SCORE_VALUES.farmerStun, 'FARMER BONKED! +260', '#ffda66', farmer.x, 3.25, farmer.z);
   }
+  effects.triggerShake(0.32, 0.24);
+  effects.triggerHitstop(0.05);
 }
 
 export function updateFarmerAI3D(farmer, turkey, stage, knives, scene, dt, audio, effects) {
-  farmer.alertTimer = Math.max(0, farmer.alertTimer - dt);
   farmer.lungeCooldown = Math.max(0, farmer.lungeCooldown - dt);
+  farmer.alertTimer = Math.max(0, farmer.alertTimer - dt);
 
-  // Stunned / Flour-Blind state
   if (farmer.state === 'stunned' || farmer.state === 'blind') {
     farmer.stateTimer -= dt;
-    farmer.rig.threatCone.visible = false;
-    farmer.rig.bodyPivot.rotation.y = Math.sin(farmer.stateTimer * 14) * 0.25;
+    farmer.vx *= Math.pow(0.88, dt * 60);
+    farmer.x = Math.max(0.5, farmer.x + farmer.vx * dt);
+    farmer.dizzyAngle += dt * 4.5;
     if (farmer.stateTimer <= 0) {
       farmer.state = 'chase';
-      farmer.rig.skinMat.color.setHex(0xf2b88e);
-      farmer.rig.bodyPivot.rotation.y = 0;
-      farmer.shoutText = 'GET BACK HERE!';
-      farmer.alertTimer = 1.4;
-      audio.playAlert();
+      farmer.alertTimer = 1.3;
+      farmer.shoutText = stage.farmerOutfit === 'chef' ? 'GET BACK HERE!' : 'COME HERE BIRD!';
     }
     syncFarmerRig(farmer, dt);
     return;
   }
 
-  farmer.rig.threatCone.visible = true;
-
-  // When Barnaby dives into 3D cover, Farmer Jeb switches to SEARCH mode with sweeping golden cone!
-  if (turkey.hiding && turkey.hideCover) {
+  // If Barnaby hides in 3D cover -> Farmer switches to SEARCHING (?)!
+  if (turkey.hiding) {
     if (farmer.state !== 'search') {
       farmer.state = 'search';
-      farmer.stateTimer = 0;
-      farmer.searchProgress = 0;
-      farmer.shoutText = "WHERE'D HE GO?";
-      farmer.alertTimer = 1.8;
+      farmer.searchTarget = { x: turkey.x + 1.6, z: turkey.z };
+      farmer.shoutText = '? WHERE DID HE GO?';
     }
-    farmer.rig.coneMat.color.setHex(0xffc938);
-    farmer.rig.coneMat.opacity = 0.24;
-
-    const dx = turkey.hideCover.x - farmer.x;
-    const dz = turkey.hideCover.z - farmer.z;
+    const tx = farmer.searchTarget ? farmer.searchTarget.x : turkey.x;
+    const tz = farmer.searchTarget ? farmer.searchTarget.z : turkey.z;
+    const dx = tx - farmer.x;
+    const dz = tz - farmer.z;
     const dist = Math.hypot(dx, dz);
-
-    if (dist > 3.1) {
-      const spd = stage.farmerSpeed * 0.62;
-      farmer.vx = (dx / dist) * spd;
-      farmer.vz = (dz / dist) * spd;
-      farmer.x += farmer.vx * dt;
-      farmer.z += farmer.vz * dt;
-      farmer.yaw = Math.atan2(dx, dz);
+    if (dist > 1.2) {
+      farmer.vx = (dx / dist) * stage.farmerSpeed * 0.56;
+      farmer.vz = (dz / dist) * stage.farmerSpeed * 0.45;
     } else {
-      farmer.stateTimer += dt;
-      farmer.vx = 0;
-      farmer.vz = 0;
-      farmer.yaw = Math.atan2(dx, dz) + Math.sin(farmer.stateTimer * 4.2) * 0.55;
-      farmer.searchProgress += dt * 0.48;
-      if (farmer.searchProgress >= 1) {
-        turkey.hiding = false;
-        turkey.hideCover = null;
-        farmer.state = 'chase';
-        farmer.shoutText = 'AHA! FOUND YA!';
-        farmer.alertTimer = 1.5;
-        audio.playAlert();
-        effects.addCallout(farmer.x, 3.3, farmer.z, 'SPOTTED!', '#ff5938', 1.15);
-      }
+      farmer.vx *= 0.85;
+      farmer.vz *= 0.85;
     }
+    farmer.x += farmer.vx * dt;
+    farmer.z = Math.max(WORLD.laneMinZ, Math.min(WORLD.laneMaxZ, farmer.z + farmer.vz * dt));
+    farmer.runCycle += dt * 6.5;
     syncFarmerRig(farmer, dt);
     return;
-  } else if (farmer.state === 'search') {
-    farmer.state = 'chase';
-    farmer.shoutText = 'THERE HE IS!';
-    farmer.alertTimer = 1.4;
-    audio.playAlert();
   }
 
-  // Active 3D Pursuit & Cornering Lunge!
+  // Spotted Barnaby -> Resume Pursuit!
+  if (farmer.state === 'search') {
+    farmer.state = 'chase';
+    farmer.alertTimer = 1.6;
+    farmer.shoutText = stage.farmerOutfit === 'chef' ? 'THERE YOU ARE!' : 'SPOTTED YA!';
+    audio.playFarmerAlert();
+  }
+
   const dx = turkey.x - farmer.x;
   const dz = turkey.z - farmer.z;
-  const dist = Math.max(0.01, Math.hypot(dx, dz));
+  const dist = Math.hypot(dx, dz);
 
-  farmer.rig.coneMat.color.setHex(farmer.state === 'lunge' ? 0xff1e14 : 0xff4d1f);
-  farmer.rig.coneMat.opacity = farmer.state === 'lunge' ? 0.34 : 0.20;
+  // Rubber-band catchup so the farmer ALWAYS stays a visible, intense 3D threat!
+  let spd = stage.farmerSpeed * stage.difficultyScale;
+  if (dx > 9.5) spd *= 1.48;
+  else if (dx > 6.0) spd *= 1.16;
 
   if (farmer.state === 'lunge') {
     farmer.stateTimer -= dt;
-    const lungeSpd = stage.farmerSpeed * 1.48 * stage.difficultyScale;
-    farmer.vx = Math.sin(farmer.yaw) * lungeSpd;
-    farmer.vz = Math.cos(farmer.yaw) * lungeSpd;
-    if (farmer.stateTimer <= 0) {
-      farmer.state = 'chase';
-      farmer.lungeCooldown = 2.4;
-    }
-  } else {
-    farmer.yaw = Math.atan2(dx, dz);
-    let spd = stage.farmerSpeed * stage.difficultyScale;
-    if (dz > 13.5) spd = Math.max(spd, 13.8); // Rubber-band catch-up so Jeb stays dangerously close!
-    else if (dist < 3.6) spd *= 0.94;
-
-    farmer.vx = (dx / dist) * spd;
-    farmer.vz = (dz / dist) * spd;
-
-    if (dist < 4.6 && dist > 1.7 && turkey.y < 1.1 && farmer.lungeCooldown <= 0) {
-      farmer.state = 'lunge';
-      farmer.stateTimer = 0.38;
-      farmer.shoutText = farmer.outfit === 'chef' ? 'INTO THE OVEN!' : 'GOTCHA NOW!';
-      farmer.alertTimer = 1.2;
-      audio.playAlert();
-    }
-
-    // Hurl gleaming 3D Carving Knives toward Barnaby!
-    farmer.knifeTimer -= dt;
-    if (farmer.knifeTimer <= 0 && dist > 4.2 && dist < 21.0) {
-      farmer.knifeTimer = Math.max(1.25, stage.farmerKnifeInterval / stage.difficultyScale);
-      const mesh = createCarvingKnifeMesh(1.1);
-      const sx = farmer.x;
-      const sy = 1.75;
-      const sz = farmer.z + 0.6;
-      mesh.position.set(sx, sy, sz);
-      scene.add(mesh);
-
-      const flightT = Math.max(0.5, Math.min(1.05, dist / 16.5));
-      const aimX = Math.max(-WORLD.laneHalfWidth, Math.min(WORLD.laneHalfWidth, turkey.x + turkey.vx * 0.22));
-      const aimZ = turkey.z + turkey.vz * 0.22;
-      const kvx = (aimX - sx) / flightT;
-      const kvz = (aimZ - sz) / flightT;
-      const gravity = 9.5;
-      const kvy = ((turkey.y + 0.72) - sy + 0.5 * gravity * flightT * flightT) / flightT;
-
-      knives.push({
-        mesh,
-        x: sx,
-        y: sy,
-        z: sz,
-        vx: kvx,
-        vy: kvy,
-        vz: kvz,
-        gravity,
-        spin: 12.5,
-        life: 3.0,
-        closeShaveGiven: false,
-      });
-      audio.playKnifeShing();
-    }
+    spd *= 1.44;
+    if (farmer.stateTimer <= 0) farmer.state = 'chase';
+  } else if (dist < 4.8 && farmer.lungeCooldown <= 0 && dx > 0.2) {
+    farmer.state = 'lunge';
+    farmer.stateTimer = 0.52;
+    farmer.lungeCooldown = 3.2;
+    farmer.alertTimer = 1.2;
+    farmer.shoutText = stage.farmerOutfit === 'chef' ? 'INTO THE OVEN!' : 'GOTCHA!';
+    audio.playFarmerAlert();
   }
 
-  farmer.x = Math.max(-WORLD.laneHalfWidth + 0.4, Math.min(WORLD.laneHalfWidth - 0.4, farmer.x + farmer.vx * dt));
-  farmer.z = Math.max(0.5, Math.min(stage.length - 3.0, farmer.z + farmer.vz * dt));
+  if (dist > 0.2) {
+    farmer.vx += ((dx / dist) * spd - farmer.vx) * Math.min(1, dt * 7);
+    farmer.vz += ((dz / dist) * spd * 0.72 - farmer.vz) * Math.min(1, dt * 7);
+  }
+  farmer.x = Math.max(0.5, farmer.x + farmer.vx * dt);
+  farmer.z = Math.max(WORLD.laneMinZ, Math.min(WORLD.laneMaxZ, farmer.z + farmer.vz * dt));
 
-  // Direct 3D grab collision with Barnaby
-  if (!turkey.hiding && Math.hypot(turkey.x - farmer.x, turkey.z - farmer.z) < 1.28 && Math.abs(turkey.y - farmer.y) < 1.35) {
-    const kx = (turkey.x - farmer.x) / dist;
-    const kz = Math.max(0.5, (turkey.z - farmer.z) / dist);
-    const hurt = damageTurkey3D(
-      turkey,
-      kx,
-      kz,
-      audio,
-      effects,
-      farmer.outfit === 'chef' ? 'CHEF GRAB!' : 'FARMER GRAB!',
-    );
+  // Keep expressive 3/4 side-front face visibility toward the camera!
+  const targetYaw = Math.atan2(dx + 2.5, dz + 2.1);
+  farmer.yaw += (targetYaw - farmer.yaw) * Math.min(1, dt * 8);
+  farmer.runCycle += dt * (5.5 + Math.hypot(farmer.vx, farmer.vz) * 0.8);
+
+  // Throw Spinning Forged 3D Carving Knife toward Barnaby!
+  farmer.knifeTimer -= dt;
+  if (farmer.knifeTimer <= 0 && dist > 3.2 && dist < 17) {
+    farmer.knifeTimer = Math.max(1.15, stage.knifeInterval / stage.difficultyScale);
+    const mesh = createCarvingKnifeMesh(1.18, true);
+    mesh.position.set(farmer.x + 0.9, 1.95, farmer.z);
+    scene.add(mesh);
+
+    const kSpd = 15.0 * stage.difficultyScale;
+    const len = Math.max(1, Math.hypot(dx, dz));
+    knives.push({
+      mesh,
+      x: farmer.x + 0.9,
+      y: 1.95,
+      z: farmer.z,
+      vx: (dx / len) * kSpd,
+      vy: 1.8,
+      vz: (dz / len) * kSpd * 0.55,
+      gravity: 5.0,
+      spin: 12.5,
+      life: 2.2,
+      closeShaveGiven: false,
+    });
+    audio.playKnifeShing();
+  }
+
+  // Catch collision check (fair height check so Barnaby can leap right over Jeb's lunge!)
+  if (dist < 1.28 && turkey.y < 1.55) {
+    const hurt = damageTurkey3D(turkey, 1.1, 0, audio, effects, 'FARMER GRAB!');
     if (hurt) {
-      farmer.z = Math.max(0.5, farmer.z - 2.2);
-      farmer.lungeCooldown = 1.6;
+      farmer.vx = -3.8;
+      farmer.lungeCooldown = 2.0;
     }
   }
 
@@ -212,19 +172,34 @@ export function updateFarmerAI3D(farmer, turkey, stage, knives, scene, dt, audio
 }
 
 export function syncFarmerRig(farmer, dt) {
-  const { rig } = farmer;
-  rig.root.position.set(farmer.x, farmer.y, farmer.z);
-  rig.root.rotation.y = farmer.yaw;
+  const r = farmer.rig;
+  r.root.position.set(farmer.x, farmer.y, farmer.z);
+  r.root.rotation.y = farmer.yaw;
 
-  const spd = Math.hypot(farmer.vx, farmer.vz);
-  if (farmer.state !== 'stunned' && farmer.state !== 'blind' && spd > 0.4) {
-    farmer.runCycle += dt * spd * 1.25;
+  const isStun = farmer.state === 'stunned' || farmer.state === 'blind';
+  const stride = Math.sin(farmer.runCycle);
+  r.leftLeg.rotation.x = isStun ? 0 : stride * 0.72;
+  r.rightLeg.rotation.x = isStun ? 0 : -stride * 0.72;
+  r.bodyPivot.position.y = isStun ? 0 : Math.abs(stride) * 0.12;
+  r.bodyPivot.rotation.x = farmer.state === 'lunge' ? 0.3 : isStun ? -0.14 : 0.1;
+
+  // Dynamic slashing right arm angled slightly outward so Jeb's furious face & mustache stay 100% visible!
+  r.rightArm.rotation.x = isStun ? -0.9 : farmer.state === 'lunge' ? -0.58 : -0.35 + Math.sin(farmer.runCycle * 1.4) * 0.35;
+  r.rightArm.rotation.z = isStun ? 0 : -0.36;
+  r.leftArm.rotation.x = isStun ? -0.75 : -0.25 - stride * 0.4;
+
+  // Orbiting 3D Golden Dizzy Stars + flour-dusted face tint when blinded!
+  r.dizzyGroup.visible = isStun;
+  if (isStun) r.dizzyGroup.rotation.y = farmer.dizzyAngle;
+  r.skinMat.color.setHex(farmer.state === 'blind' ? 0xfff8eb : 0xf5be96);
+
+  // Volumetric 3D floor vision cone color & pulse
+  if (isStun) {
+    r.threatCone.visible = false;
+  } else {
+    r.threatCone.visible = true;
+    r.coneMat.color.setHex(farmer.state === 'search' ? 0xffc833 : 0xff3b1a);
+    r.coneMat.opacity = farmer.state === 'lunge' ? 0.34 : 0.22;
   }
-
-  const stride = farmer.state === 'stunned' || farmer.state === 'blind' ? 0 : Math.sin(farmer.runCycle) * 0.65;
-  rig.leftLeg.rotation.x = stride;
-  rig.rightLeg.rotation.x = -stride;
-  rig.rightArm.rotation.x = farmer.state === 'lunge' ? -0.85 : -0.25 + Math.sin(farmer.runCycle) * 0.45;
-  rig.leftArm.rotation.x = -stride * 0.45;
-  rig.bodyPivot.position.y = Math.abs(Math.sin(farmer.runCycle)) * 0.1;
+  void dt;
 }

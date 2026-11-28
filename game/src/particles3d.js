@@ -1,4 +1,4 @@
-// 3D Particle & Screen-Space Callout Manager: 3D tumbling feathers, oven sparks, flour clouds, autumn leaves, camera shake.
+// Real 3D Three.js Particle & Feedback Manager: feathers, 450°F embers, oven smoke, billowing flour bombs, maple leaves & callouts.
 
 import * as THREE from 'three';
 
@@ -7,153 +7,145 @@ export class EffectsManager3D {
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
-    this.particles = [];
-    this.leaves = [];
-    this.callouts = [];
-    this.shakeTime = 0;
-    this.shakeIntensity = 0;
-    this.hitstopTimer = 0;
-    this.flashColor = null;
-    this.flashAlpha = 0;
 
-    this.featherGeo = new THREE.BoxGeometry(0.24, 0.06, 0.12);
-    this.sparkGeo = new THREE.SphereGeometry(0.09, 6, 6);
-    this.cloudGeo = new THREE.SphereGeometry(0.45, 10, 8);
-    this.leafGeo = new THREE.BoxGeometry(0.22, 0.03, 0.22);
+    this.particles = [];
+    this.ambientLeaves = [];
+    this.callouts = [];
+    this.shakeTimer = 0;
+    this.shakeAmp = 0;
+    this.hitstopTimer = 0;
+    this.flashAlpha = 0;
+    this.flashColor = null;
+
+    this.featherGeo = new THREE.BoxGeometry(0.14, 0.34, 0.03);
+    this.emberGeo = new THREE.SphereGeometry(0.085, 6, 6);
+    this.flourGeo = new THREE.SphereGeometry(0.42, 10, 10);
+    this.leafGeo = new THREE.BoxGeometry(0.24, 0.035, 0.24);
+    this.ringGeo = new THREE.TorusGeometry(0.75, 0.075, 8, 24);
   }
 
   reset(rng) {
     for (const p of this.particles) this.group.remove(p.mesh);
-    for (const l of this.leaves) this.group.remove(l.mesh);
+    for (const l of this.ambientLeaves) this.group.remove(l.mesh);
     this.particles = [];
-    this.leaves = [];
+    this.ambientLeaves = [];
     this.callouts = [];
-    this.shakeTime = 0;
+    this.shakeTimer = 0;
     this.hitstopTimer = 0;
     this.flashAlpha = 0;
 
-    const leafCols = [0xd4301b, 0xeb781e, 0xf7b731, 0xb82616];
-    for (let i = 0; i < 42; i++) {
-      const mat = new THREE.MeshStandardMaterial({ color: leafCols[i % leafCols.length], roughness: 0.6 });
+    // 32 gently swirling 3D autumn maple leaves drifting across the foreground & midground!
+    const leafColors = [0xd93218, 0xf27b1b, 0xffc633, 0xb82412];
+    for (let i = 0; i < 32; i++) {
+      const mat = new THREE.MeshStandardMaterial({ color: leafColors[i % leafColors.length], roughness: 0.62 });
       const mesh = new THREE.Mesh(this.leafGeo, mat);
-      mesh.position.set(rng.range(-9, 9), rng.range(1.2, 8.5), rng.range(-4, 34));
+      mesh.position.set(rng.range(-4, 42), rng.range(1.5, 8.5), rng.range(-3.5, 4.2));
       this.group.add(mesh);
-      this.leaves.push({
+      this.ambientLeaves.push({
         mesh,
-        vx: rng.range(-0.8, 0.8),
-        vy: rng.range(-1.4, -0.65),
-        vz: rng.range(-0.8, 0.8),
-        vrot: rng.range(-3.2, 3.2),
-        sway: rng.range(0, Math.PI * 2),
+        vy: -rng.range(0.55, 1.25),
+        vx: -rng.range(0.4, 1.3),
+        swayPhase: rng.range(0, Math.PI * 2),
+        spin: rng.range(1.6, 3.6),
       });
     }
   }
 
-  triggerShake(intensity, duration = 0.24) {
-    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-    this.shakeTime = Math.max(this.shakeTime, duration);
+  triggerShake(amp, dur = 0.22) {
+    this.shakeAmp = Math.max(this.shakeAmp, amp);
+    this.shakeTimer = Math.max(this.shakeTimer, dur);
   }
 
-  triggerHitstop(duration = 0.045) {
-    this.hitstopTimer = Math.max(this.hitstopTimer, duration);
+  triggerHitstop(dur = 0.04) {
+    this.hitstopTimer = Math.max(this.hitstopTimer, dur);
   }
 
-  triggerFlash(color, alpha = 0.35) {
+  triggerFlash(color, alpha = 0.28) {
     this.flashColor = color;
     this.flashAlpha = Math.max(this.flashAlpha, alpha);
   }
 
-  addCallout(x, y, z, text, color = '#ffd85c', scale = 1) {
-    for (const existing of this.callouts) {
-      if (existing.text === text && existing.life > existing.maxLife * 0.65) return;
-    }
-    let ty = y;
-    for (const existing of this.callouts) {
-      if (Math.hypot(existing.x - x, existing.z - z) < 2.5 && Math.abs(existing.y - ty) < 0.85) {
-        ty = existing.y + 0.85;
-      }
-    }
-    if (this.callouts.length >= 4) this.callouts.shift();
-    this.callouts.push({ x, y: ty, z, vy: 1.8, text, color, scale, life: 1.05, maxLife: 1.05 });
+  addCallout(x, y, z, text, color = '#ffe066', scale = 1.0) {
+    this.callouts.push({ x, y, z, text, color, scale, life: 1.05, maxLife: 1.05 });
   }
 
-  spawnFeathers(x, y, z, count = 8, speed = 5.5) {
-    const cols = [0xd45219, 0xf7b538, 0x992816, 0xfff0c4];
+  spawnFeathers(x, y, z, count = 8, speed = 5.0) {
+    const colors = [0xffcf40, 0xeb6e1e, 0xd42c1a, 0xfff1cc];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.MeshStandardMaterial({ color: cols[i % cols.length], roughness: 0.45 });
+      const mat = new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: 0.46 });
       const mesh = new THREE.Mesh(this.featherGeo, mat);
       mesh.position.set(x, y, z);
       this.group.add(mesh);
-      const a = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const spd = speed * (0.45 + Math.random() * 0.65);
+      const a = (i / count) * Math.PI * 2 + Math.random() * 0.5;
       this.particles.push({
         mesh,
-        vx: Math.cos(a) * spd,
-        vy: 2.2 + Math.random() * 3.4,
-        vz: Math.sin(a) * spd,
-        gravity: 9.5,
-        vrot: (Math.random() - 0.5) * 10,
-        scaleGrow: 0,
-        life: 0.75 + Math.random() * 0.4,
-        maxLife: 1.15,
+        vx: Math.cos(a) * speed * (0.45 + Math.random() * 0.7),
+        vy: 2.2 + Math.random() * 4.4,
+        vz: Math.sin(a) * speed * 0.45,
+        gravity: 6.2,
+        drag: 0.94,
+        spin: (Math.random() - 0.5) * 11,
+        grow: 0,
+        life: 0.9 + Math.random() * 0.45,
+        maxLife: 1.35,
       });
     }
   }
 
-  spawnEmbers(x, y, z, dirX, count = 8) {
+  spawnEmbers(x, y, z, dirX = -1, count = 8) {
+    const cols = [0xfff28a, 0xff921c, 0xff3d0d];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xfff08a : 0xff5e14 });
-      const mesh = new THREE.Mesh(this.sparkGeo, mat);
-      mesh.position.set(x + (Math.random() - 0.5) * 0.5, y + (Math.random() - 0.5) * 0.5, z + (Math.random() - 0.5) * 0.6);
+      const mat = new THREE.MeshBasicMaterial({ color: cols[i % cols.length] });
+      const mesh = new THREE.Mesh(this.emberGeo, mat);
+      mesh.position.set(x, y + (Math.random() - 0.5) * 0.75, z + (Math.random() - 0.5) * 0.75);
       this.group.add(mesh);
       this.particles.push({
         mesh,
-        vx: dirX * (2.5 + Math.random() * 5.2),
-        vy: 1.2 + Math.random() * 3.2,
+        vx: dirX * (3.8 + Math.random() * 5.2),
+        vy: 1.0 + Math.random() * 3.0,
         vz: (Math.random() - 0.5) * 2.2,
-        gravity: -2.0,
-        vrot: 0,
-        scaleGrow: -0.6,
-        life: 0.35 + Math.random() * 0.35,
-        maxLife: 0.7,
+        gravity: -1.4,
+        drag: 0.97,
+        spin: 4,
+        grow: -0.4,
+        life: 0.48 + Math.random() * 0.32,
+        maxLife: 0.8,
       });
     }
   }
 
-  spawnFlourExplosion(x, y, z, count = 18) {
+  spawnFlourExplosion(x, y, z, count = 14) {
     for (let i = 0; i < count; i++) {
       const mat = new THREE.MeshStandardMaterial({
-        color: 0xfffbf2,
-        roughness: 0.9,
+        color: 0xfffaf0,
+        roughness: 0.88,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.92,
       });
-      const mesh = new THREE.Mesh(this.cloudGeo, mat);
-      mesh.position.set(x, y, z);
+      const mesh = new THREE.Mesh(this.flourGeo, mat);
+      mesh.position.set(x + (Math.random() - 0.5) * 0.5, y + (Math.random() - 0.5) * 0.4, z + (Math.random() - 0.5) * 0.5);
       this.group.add(mesh);
-      const a = Math.random() * Math.PI * 2;
-      const spd = 1.4 + Math.random() * 4.8;
+      const a = (i / count) * Math.PI * 2;
       this.particles.push({
         mesh,
-        vx: Math.cos(a) * spd,
-        vy: 0.8 + Math.random() * 3.2,
-        vz: Math.sin(a) * spd,
-        gravity: 1.5,
-        vrot: 2,
-        scaleGrow: 1.6,
-        life: 0.85 + Math.random() * 0.55,
-        maxLife: 1.4,
+        vx: Math.cos(a) * (1.2 + Math.random() * 2.8),
+        vy: 1.0 + Math.random() * 2.8,
+        vz: Math.sin(a) * (1.2 + Math.random() * 2.6),
+        gravity: 0.8,
+        drag: 0.92,
+        spin: 2,
+        grow: 1.2,
+        life: 1.05 + Math.random() * 0.45,
+        maxLife: 1.5,
       });
     }
   }
 
-  spawnGobbleWave(x, y, z) {
-    const mesh = new THREE.Mesh(
-      new THREE.RingGeometry(0.4, 0.65, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffe066, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }),
-    );
-    mesh.rotation.x = -Math.PI * 0.5;
+  spawnGobbleRing(x, y, z) {
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffe266, transparent: true, opacity: 0.9 });
+    const mesh = new THREE.Mesh(this.ringGeo, mat);
     mesh.position.set(x, y, z);
+    mesh.rotation.y = Math.PI * 0.5;
     this.group.add(mesh);
     this.particles.push({
       mesh,
@@ -161,34 +153,20 @@ export class EffectsManager3D {
       vy: 0,
       vz: 0,
       gravity: 0,
-      vrot: 0,
-      scaleGrow: 12.0,
-      life: 0.42,
-      maxLife: 0.42,
+      drag: 1,
+      spin: 0,
+      grow: 6.5,
+      life: 0.36,
+      maxLife: 0.36,
     });
   }
 
-  update(dt, focusZ = 0) {
-    if (this.shakeTime > 0) {
-      this.shakeTime = Math.max(0, this.shakeTime - dt);
-      if (this.shakeTime === 0) this.shakeIntensity = 0;
+  update(dt, focusX) {
+    if (this.shakeTimer > 0) {
+      this.shakeTimer = Math.max(0, this.shakeTimer - dt);
+      if (this.shakeTimer <= 0) this.shakeAmp = 0;
     }
-    if (this.flashAlpha > 0) {
-      this.flashAlpha = Math.max(0, this.flashAlpha - dt * 1.9);
-    }
-
-    // Keep ambient 3D autumn leaves swirling around current camera Z!
-    for (const l of this.leaves) {
-      l.sway += dt * 2.4;
-      l.mesh.position.x += (l.vx + Math.sin(l.sway) * 0.9) * dt;
-      l.mesh.position.y += l.vy * dt;
-      l.mesh.position.z += l.vz * dt;
-      l.mesh.rotation.x += l.vrot * dt;
-      l.mesh.rotation.z += l.vrot * 0.7 * dt;
-      if (l.mesh.position.y < 0.1 || l.mesh.position.z < focusZ - 12 || l.mesh.position.z > focusZ + 36) {
-        l.mesh.position.set((Math.random() - 0.5) * 18, 7.5 + Math.random() * 2.5, focusZ + Math.random() * 32 - 4);
-      }
-    }
+    if (this.flashAlpha > 0) this.flashAlpha = Math.max(0, this.flashAlpha - dt * 1.6);
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -199,32 +177,45 @@ export class EffectsManager3D {
         continue;
       }
       p.vy -= p.gravity * dt;
+      p.vx *= Math.pow(p.drag, dt * 60);
+      p.vz *= Math.pow(p.drag, dt * 60);
       p.mesh.position.x += p.vx * dt;
       p.mesh.position.y = Math.max(0.05, p.mesh.position.y + p.vy * dt);
       p.mesh.position.z += p.vz * dt;
-      p.mesh.rotation.x += p.vrot * dt;
-      p.mesh.rotation.y += p.vrot * dt;
-      if (p.scaleGrow !== 0) {
-        const s = Math.max(0.05, p.mesh.scale.x + p.scaleGrow * dt);
-        p.mesh.scale.setScalar(s);
+      p.mesh.rotation.x += p.spin * dt;
+      p.mesh.rotation.z += p.spin * 0.7 * dt;
+
+      if (p.grow !== 0) {
+        const sc = Math.max(0.08, p.mesh.scale.x + p.grow * dt);
+        p.mesh.scale.setScalar(sc);
       }
       if (p.mesh.material.transparent) {
-        p.mesh.material.opacity = Math.max(0, (p.life / p.maxLife) * 0.85);
+        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);
+      }
+    }
+
+    for (const l of this.ambientLeaves) {
+      l.swayPhase += dt * 2.2;
+      l.mesh.position.x += (l.vx + Math.cos(l.swayPhase) * 0.45) * dt;
+      l.mesh.position.y += l.vy * dt;
+      l.mesh.rotation.x += l.spin * dt;
+      l.mesh.rotation.y += l.spin * 0.8 * dt;
+      if (l.mesh.position.y < 0.1 || l.mesh.position.x < focusX - 18) {
+        l.mesh.position.set(focusX + 8 + Math.random() * 24, 6.5 + Math.random() * 4, -3.5 + Math.random() * 7.5);
       }
     }
 
     for (let i = this.callouts.length - 1; i >= 0; i--) {
       const c = this.callouts[i];
       c.life -= dt;
-      c.y += c.vy * dt;
-      c.vy *= 1 - dt * 2.5;
+      c.y += dt * 1.15;
       if (c.life <= 0) this.callouts.splice(i, 1);
     }
   }
 
   getShakeOffset() {
-    if (this.shakeTime <= 0 || this.shakeIntensity <= 0) return { x: 0, y: 0 };
-    const m = this.shakeIntensity * Math.min(1, this.shakeTime * 5);
-    return { x: (Math.random() * 2 - 1) * m, y: (Math.random() * 2 - 1) * m };
+    if (this.shakeTimer <= 0) return { x: 0, y: 0 };
+    const s = this.shakeAmp * (this.shakeTimer / 0.22);
+    return { x: (Math.random() - 0.5) * s, y: (Math.random() - 0.5) * s };
   }
 }

@@ -1,606 +1,474 @@
-// Hierarchical 3D Three.js character & prop rigs: Barnaby the Turkey, Farmer/Chef Jeb, 450°F Ovens, Knives, Cleavers, Props.
+// Sculpted Pixar-grade 3D rigs & props: Barnaby Turkey, Farmer/Chef Jeb, 450°F Hearth Ovens, Forged Knives, Cleavers & Freedom Doors.
 
 import * as THREE from 'three';
+import { createKnifeSlashMaterial, createVolumetricFireMaterial } from './shaders.js';
+
+const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x240c05, side: THREE.BackSide });
+const stdMat = (props) => new THREE.MeshStandardMaterial(props);
 
 function enableShadow(root, cast = true, receive = true) {
-  root.traverse((obj) => {
-    if (obj.isMesh) {
-      obj.castShadow = cast;
-      obj.receiveShadow = receive;
+  root.traverse((o) => {
+    if (o.isMesh && !o.userData.noShadow) {
+      o.castShadow = cast;
+      o.receiveShadow = receive;
     }
   });
   return root;
 }
 
-export function createTurkeyRig() {
+function addInkOutline(mesh, scale = 1.045) {
+  const shell = new THREE.Mesh(mesh.geometry, OUTLINE_MAT);
+  shell.scale.setScalar(scale);
+  shell.userData.noShadow = true;
+  mesh.add(shell);
+  return mesh;
+}
+
+function part(parent, geo, mat, x = 0, y = 0, z = 0, outline = 0) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  if (outline) addInkOutline(m, outline);
+  parent.add(m);
+  return m;
+}
+
+export function createTurkeyRig(textures) {
   const root = new THREE.Group();
   const bodyPivot = new THREE.Group();
   root.add(bodyPivot);
 
-  const chestnutMat = new THREE.MeshStandardMaterial({ color: 0x8f3a18, roughness: 0.58, metalness: 0.06 });
-  const breastMat = new THREE.MeshStandardMaterial({ color: 0xb85824, roughness: 0.52 });
-  const wingMat = new THREE.MeshStandardMaterial({ color: 0x752c12, roughness: 0.56 });
-  const beakMat = new THREE.MeshStandardMaterial({ color: 0xf7b731, roughness: 0.35 });
-  const wattleMat = new THREE.MeshStandardMaterial({ color: 0xe62222, roughness: 0.38, emissive: 0x3a0505 });
-  const scarfMat = new THREE.MeshStandardMaterial({ color: 0xd4281c, roughness: 0.5 });
-  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x120804, roughness: 0.15 });
-  const legMat = new THREE.MeshStandardMaterial({ color: 0xe87e1b, roughness: 0.45 });
+  const plumageMat = stdMat({ map: textures.turkeyPlumage, roughness: 0.56, metalness: 0.05, emissive: 0x240c04, emissiveIntensity: 0.14 });
+  const breastMat = stdMat({ color: 0xc96524, roughness: 0.48, emissive: 0x290e04, emissiveIntensity: 0.15 });
+  const headMat = stdMat({ color: 0xb8521e, roughness: 0.45, emissive: 0x210a04, emissiveIntensity: 0.12 });
+  const wingMat = stdMat({ color: 0x7d2e12, roughness: 0.52 });
+  const wingGoldMat = stdMat({ color: 0xf5a42c, roughness: 0.42 });
+  const beakMat = stdMat({ color: 0xffbe2e, roughness: 0.3, emissive: 0x382100, emissiveIntensity: 0.2 });
+  const wattleMat = stdMat({ color: 0xee1f1f, roughness: 0.32, emissive: 0x520606, emissiveIntensity: 0.35 });
+  const scarfMat = stdMat({ color: 0xd9261a, roughness: 0.48 });
+  const scarfStripeMat = stdMat({ color: 0xffd24d, roughness: 0.45 });
+  const eyeWhiteMat = stdMat({ color: 0xffffff, roughness: 0.18, emissive: 0x222222, emissiveIntensity: 0.2 });
+  const pupilMat = stdMat({ color: 0x120804, roughness: 0.1 });
+  const legMat = stdMat({ color: 0xf08519, roughness: 0.42 });
 
-  // Plump sculpted body + warm golden-bronze chest plumage
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.58, 22, 18), chestnutMat);
-  torso.scale.set(0.95, 0.86, 1.18);
-  torso.position.set(0, 0.72, 0);
-  bodyPivot.add(torso);
+  const bodyPts = [[0.01, 0], [0.38, 0.06], [0.58, 0.28], [0.61, 0.58], [0.49, 0.86], [0.28, 1.04], [0.01, 1.12]].map(([r, y]) => new THREE.Vector2(r, y));
+  const torso = part(bodyPivot, new THREE.LatheGeometry(bodyPts, 24), plumageMat, 0, 0.24, -0.02, 1.042);
+  torso.scale.set(0.95, 0.94, 1.18);
+  const chest = part(bodyPivot, new THREE.SphereGeometry(0.44, 18, 14), breastMat, 0, 0.78, 0.32);
+  chest.scale.set(0.92, 0.88, 0.92);
 
-  const breast = new THREE.Mesh(new THREE.SphereGeometry(0.46, 18, 14), breastMat);
-  breast.scale.set(0.88, 0.82, 0.9);
-  breast.position.set(0, 0.74, 0.28);
-  bodyPivot.add(breast);
-
-  // Glorious 11-feather 3D iridescent Thanksgiving tail fan (angled so head & wattle silhouette cleanly above!)
+  // 2-tier sculpted 13-feather curved teardrop Thanksgiving tail fan
   const tailFan = new THREE.Group();
-  tailFan.position.set(0, 0.79, -0.55);
-  tailFan.rotation.x = -0.56;
+  tailFan.position.set(0, 0.82, -0.58);
+  tailFan.rotation.x = -0.42;
   bodyPivot.add(tailFan);
 
-  const featherCols = [0x992416, 0xd45219, 0xf09224, 0xb83318, 0xf7ad2b, 0xd94818, 0xf7ad2b, 0xb83318, 0xf09224, 0xd45219, 0x992416];
-  const tipMat = new THREE.MeshStandardMaterial({ color: 0xfff1cc, roughness: 0.42 });
-  const bandMat = new THREE.MeshStandardMaterial({ color: 0x2e1008, roughness: 0.6 });
+  const fShape = new THREE.Shape();
+  fShape.moveTo(0, 0);
+  fShape.quadraticCurveTo(0.15, 0.35, 0.16, 0.78);
+  fShape.quadraticCurveTo(0.14, 1.05, 0, 1.1);
+  fShape.quadraticCurveTo(-0.14, 1.05, -0.16, 0.78);
+  fShape.quadraticCurveTo(-0.15, 0.35, 0, 0);
+  const fGeo = new THREE.ExtrudeGeometry(fShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 2 });
+  fGeo.translate(0, 0, -0.015);
+  const fPal = [0x9e2112, 0xd44b15, 0xf28d1f, 0xb83014, 0xfab128, 0xde4614, 0xffc238, 0xde4614, 0xfab128, 0xb83014, 0xf28d1f, 0xd44b15, 0x9e2112];
+  const darkBandMat = stdMat({ color: 0x2b0e06, roughness: 0.58 });
+  const creamTipMat = stdMat({ color: 0xfff2cc, roughness: 0.38, emissive: 0x33240d, emissiveIntensity: 0.18 });
 
-  for (let i = 0; i < 11; i++) {
-    const fHolder = new THREE.Group();
-    const t = (i - 5) / 5;
-    fHolder.rotation.z = -t * 1.12;
-    fHolder.position.z = -Math.abs(t) * 0.04;
-
-    const fMat = new THREE.MeshStandardMaterial({ color: featherCols[i], roughness: 0.48 });
-    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.9, 0.04), fMat);
-    shaft.position.y = 0.45;
-    fHolder.add(shaft);
-
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.11, 0.045), bandMat);
-    band.position.y = 0.74;
-    fHolder.add(band);
-
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.14, 0.045), tipMat);
-    tip.position.y = 0.86;
-    fHolder.add(tip);
-
-    tailFan.add(fHolder);
+  for (let i = 0; i < 13; i++) {
+    const holder = new THREE.Group();
+    const t = (i - 6) / 6;
+    holder.rotation.z = -t * 1.24;
+    holder.position.z = -Math.abs(t) * 0.08 - (i % 2) * 0.04;
+    holder.scale.set(0.95, 0.94 + (1 - Math.abs(t)) * 0.18, 1);
+    part(holder, fGeo, stdMat({ color: fPal[i], roughness: 0.44 }), 0, 0, 0, 1.05);
+    part(holder, new THREE.BoxGeometry(0.28, 0.11, 0.056), darkBandMat, 0, 0.8, 0);
+    const tip = part(holder, new THREE.SphereGeometry(0.135, 10, 8), creamTipMat, 0, 0.99, 0);
+    tip.scale.set(1.12, 0.75, 0.3);
+    tailFan.add(holder);
   }
 
-  // Articulated Left & Right Wings with golden primary flight tips (spread wide during Flutter Glide!)
-  const wingTrimMat = new THREE.MeshStandardMaterial({ color: 0xf29f29, roughness: 0.44 });
-  const leftWing = new THREE.Group();
-  leftWing.position.set(-0.5, 0.82, 0.06);
-  const lwMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.42, 0.72), wingMat);
-  lwMesh.position.set(-0.08, -0.06, -0.1);
-  const lwTip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.66), wingTrimMat);
-  lwTip.position.set(-0.1, -0.24, -0.12);
-  leftWing.add(lwMesh, lwTip);
-  bodyPivot.add(leftWing);
+  // Sculpted curved airfoil wings with golden flight feathers
+  const wShape = new THREE.Shape();
+  wShape.moveTo(0, 0.16);
+  wShape.quadraticCurveTo(0.26, 0.24, 0.42, -0.04);
+  wShape.quadraticCurveTo(0.22, -0.34, -0.22, -0.24);
+  wShape.quadraticCurveTo(-0.34, -0.02, 0, 0.16);
+  const wGeo = new THREE.ExtrudeGeometry(wShape, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2 });
+  wGeo.rotateY(Math.PI * 0.5);
 
-  const rightWing = new THREE.Group();
-  rightWing.position.set(0.5, 0.82, 0.06);
-  const rwMesh = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.42, 0.72), wingMat);
-  rwMesh.position.set(0.08, -0.06, -0.1);
-  const rwTip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.66), wingTrimMat);
-  rwTip.position.set(0.1, -0.24, -0.12);
-  rightWing.add(rwMesh, rwTip);
-  bodyPivot.add(rightWing);
+  const buildWing = (side) => {
+    const wG = new THREE.Group();
+    wG.position.set(side * 0.54, 0.84, 0.05);
+    part(wG, wGeo, wingMat, side * 0.02, -0.02, -0.06, 1.05);
+    for (let f = 0; f < 3; f++) {
+      const tp = part(wG, new THREE.CapsuleGeometry(0.055, 0.24, 6, 8), wingGoldMat, side * 0.08, -0.14 - f * 0.06, -0.28 - f * 0.07);
+      tp.rotation.x = 1.1 + f * 0.28;
+    }
+    return wG;
+  };
+  const leftWing = buildWing(-1);
+  const rightWing = buildWing(1);
+  bodyPivot.add(leftWing, rightWing);
 
-  // Proud Upright Neck, Heroic Crimson Scarf, Expressive Comic Head, Beak & Scarlet Wattle!
+  // Expressive neck, knit scarf, sculpted comic head, open beak & scarlet wattle
   const neckGroup = new THREE.Group();
-  neckGroup.position.set(0, 1.12, 0.45);
+  neckGroup.position.set(0, 1.16, 0.4);
   bodyPivot.add(neckGroup);
-
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.48, 14), chestnutMat);
-  neck.position.y = 0.17;
-  neckGroup.add(neck);
-
-  const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.07, 10, 18), scarfMat);
+  part(neckGroup, new THREE.CylinderGeometry(0.16, 0.23, 0.44, 16), headMat, 0, 0.16, 0, 1.05);
+  const scarfCollar = part(neckGroup, new THREE.TorusGeometry(0.23, 0.075, 10, 20), scarfMat, 0, 0.04, 0, 1.05);
   scarfCollar.rotation.x = Math.PI * 0.5;
-  scarfCollar.position.y = 0.05;
-  neckGroup.add(scarfCollar);
 
-  const scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.065, 0.62), scarfMat);
-  scarfTail.position.set(0, 0.05, -0.36);
+  const scarfTail = new THREE.Group();
+  const sCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.04, -0.18), new THREE.Vector3(-0.08, 0.08, -0.48), new THREE.Vector3(0.06, -0.04, -0.82)]);
+  part(scarfTail, new THREE.TubeGeometry(sCurve, 12, 0.075, 8, false), scarfMat, 0, 0, 0, 1.05);
+  part(scarfTail, new THREE.SphereGeometry(0.085, 8, 8), scarfStripeMat, 0.06, -0.04, -0.82);
   neckGroup.add(scarfTail);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 16), breastMat);
-  head.position.set(0, 0.48, 0.08);
-  neckGroup.add(head);
+  const head = part(neckGroup, new THREE.SphereGeometry(0.32, 20, 18), headMat, 0, 0.5, 0.08, 1.045);
+  head.scale.set(0.96, 1.05, 1.02);
+  for (let c = 0; c < 3; c++) part(neckGroup, new THREE.SphereGeometry(0.095 - c * 0.012, 10, 10), wattleMat, 0, 0.83 - c * 0.03, 0.08 - c * 0.12, 1.06);
 
-  // Scarlet head crest tuft
-  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.095, 0.26, 8), wattleMat);
-  crest.position.set(0, 0.78, 0.03);
-  crest.rotation.x = -0.35;
-  neckGroup.add(crest);
+  const upperBeak = part(neckGroup, new THREE.ConeGeometry(0.135, 0.38, 12), beakMat, 0, 0.5, 0.46, 1.05);
+  upperBeak.rotation.x = Math.PI * 0.44;
+  const lowerBeak = part(neckGroup, new THREE.ConeGeometry(0.1, 0.28, 10), beakMat, 0, 0.39, 0.4);
+  lowerBeak.rotation.x = Math.PI * 0.64;
 
-  // Sculpted golden beak
-  const upperBeak = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.34, 10), beakMat);
-  upperBeak.rotation.x = Math.PI * 0.5;
-  upperBeak.position.set(0, 0.47, 0.41);
-  neckGroup.add(upperBeak);
-
-  // Iconic red snood & dangling throat wattle
   const wattlePivot = new THREE.Group();
-  wattlePivot.position.set(0.05, 0.45, 0.33);
-  const wattle = new THREE.Mesh(new THREE.CapsuleGeometry(0.078, 0.2, 6, 10), wattleMat);
-  wattle.position.y = -0.13;
-  wattlePivot.add(wattle);
+  wattlePivot.position.set(0.05, 0.48, 0.38);
+  part(wattlePivot, new THREE.CapsuleGeometry(0.068, 0.16, 6, 10), wattleMat, 0.02, -0.1, 0.03, 1.06);
+  const wDrop = part(wattlePivot, new THREE.SphereGeometry(0.092, 10, 10), wattleMat, 0.03, -0.24, 0.02, 1.06);
+  wDrop.scale.set(0.9, 1.25, 0.9);
   neckGroup.add(wattlePivot);
 
-  // Big expressive 3D comic eyes (readable from front & 3/4 chase angles)
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), eyeWhiteMat);
-    eye.position.set(side * 0.185, 0.53, 0.24);
-    neckGroup.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.056, 10, 10), pupilMat);
-    pupil.position.set(side * 0.21, 0.53, 0.33);
-    neckGroup.add(pupil);
+  const browMat = stdMat({ color: 0x3b1508, roughness: 0.6 });
+  for (const s of [-1, 1]) {
+    part(neckGroup, new THREE.SphereGeometry(0.125, 14, 14), eyeWhiteMat, s * 0.19, 0.57, 0.25, 1.05);
+    part(neckGroup, new THREE.SphereGeometry(0.062, 10, 10), pupilMat, s * 0.21, 0.57, 0.35);
+    part(neckGroup, new THREE.SphereGeometry(0.022, 8, 8), eyeWhiteMat, s * 0.225, 0.6, 0.4);
+    const br = part(neckGroup, new THREE.BoxGeometry(0.18, 0.045, 0.06), browMat, s * 0.19, 0.71, 0.29);
+    br.rotation.z = s * 0.22;
   }
 
-  // Articulated Left & Right Legs + Webbed Feet
-  const leftLeg = new THREE.Group();
-  leftLeg.position.set(-0.2, 0.4, 0.04);
-  const lShin = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.4, 8), legMat);
-  lShin.position.y = -0.2;
-  const lFoot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.32), legMat);
-  lFoot.position.set(0, -0.38, 0.06);
-  leftLeg.add(lShin, lFoot);
-  root.add(leftLeg);
+  const buildLeg = (side) => {
+    const leg = new THREE.Group();
+    leg.position.set(side * 0.22, 0.42, 0.02);
+    const drum = part(leg, new THREE.SphereGeometry(0.13, 10, 10), plumageMat, 0, -0.04, 0);
+    drum.scale.set(0.9, 1.15, 0.9);
+    part(leg, new THREE.CylinderGeometry(0.042, 0.042, 0.36, 8), legMat, 0, -0.22, 0);
+    for (const ta of [-0.42, 0, 0.42]) {
+      const toe = part(leg, new THREE.CapsuleGeometry(0.032, 0.2, 4, 6), legMat, Math.sin(ta) * 0.09, -0.39, 0.1);
+      toe.rotation.set(Math.PI * 0.5, 0, ta);
+    }
+    return leg;
+  };
+  const leftLeg = buildLeg(-1);
+  const rightLeg = buildLeg(1);
+  root.add(leftLeg, rightLeg);
 
-  const rightLeg = new THREE.Group();
-  rightLeg.position.set(0.2, 0.4, 0.04);
-  const rShin = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.4, 8), legMat);
-  rShin.position.y = -0.2;
-  const rFoot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.32), legMat);
-  rFoot.position.set(0, -0.38, 0.06);
-  rightLeg.add(rShin, rFoot);
-  root.add(rightLeg);
-
-  // Hot-streak golden point light attached to Barnaby
-  const auraLight = new THREE.PointLight(0xffb838, 0, 5.5);
-  auraLight.position.set(0, 1.1, 0);
+  const auraLight = new THREE.PointLight(0xffb838, 0, 6);
+  auraLight.position.set(0, 1.2, 0.5);
   root.add(auraLight);
 
   enableShadow(root, true, true);
-  return {
-    root,
-    bodyPivot,
-    tailFan,
-    leftWing,
-    rightWing,
-    neckGroup,
-    wattlePivot,
-    scarfTail,
-    leftLeg,
-    rightLeg,
-    auraLight,
-  };
+  return { root, bodyPivot, tailFan, leftWing, rightWing, neckGroup, lowerBeak, wattlePivot, scarfTail, leftLeg, rightLeg, auraLight };
 }
 
 export function createFarmerRig(outfit, textures) {
   const root = new THREE.Group();
   const isChef = outfit === 'chef';
-
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0xf2b88e, roughness: 0.55 });
-  const shirtMat = isChef
-    ? new THREE.MeshStandardMaterial({ color: 0xfbf7ef, roughness: 0.48 })
-    : new THREE.MeshStandardMaterial({ map: textures.plaid, roughness: 0.65 });
-  const apronOrDenimMat = isChef
-    ? new THREE.MeshStandardMaterial({ map: textures.gingham, roughness: 0.55 })
-    : new THREE.MeshStandardMaterial({ color: 0x2e537d, roughness: 0.65 });
-  const pantsMat = new THREE.MeshStandardMaterial({ color: isChef ? 0x28262e : 0x264466, roughness: 0.7 });
-  const bootMat = new THREE.MeshStandardMaterial({ color: 0x3b1d0e, roughness: 0.6 });
-  const beardMat = new THREE.MeshStandardMaterial({ color: 0x6e2d12, roughness: 0.65 });
-
   const bodyPivot = new THREE.Group();
   root.add(bodyPivot);
 
-  // Burly barrel torso + overalls/gingham apron
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.62, 1.28, 18), shirtMat);
-  torso.position.y = 1.48;
-  bodyPivot.add(torso);
+  const skinMat = stdMat({ color: 0xf5be96, roughness: 0.52 });
+  const noseMat = stdMat({ color: 0xe67258, roughness: 0.46 });
+  const shirtMat = isChef ? stdMat({ color: 0xfcf9f2, roughness: 0.45 }) : stdMat({ map: textures.plaid, roughness: 0.62 });
+  const overallMat = isChef ? stdMat({ map: textures.gingham, roughness: 0.52 }) : stdMat({ color: 0x2c5280, roughness: 0.62 });
+  const pantsMat = stdMat({ color: isChef ? 0x26242b : 0x25456b, roughness: 0.68 });
+  const bootMat = stdMat({ color: 0x3b1d0d, roughness: 0.55 });
+  const hairMat = stdMat({ color: 0x823414, roughness: 0.62 });
+  const brassMat = stdMat({ color: 0xf7be3e, metalness: 0.82, roughness: 0.25 });
 
-  const apron = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.65, 0.92, 18, 1, false, -Math.PI * 0.42, Math.PI * 0.84), apronOrDenimMat);
-  apron.position.y = 1.32;
-  bodyPivot.add(apron);
+  const torsoPts = [[0.01, 0], [0.54, 0.06], [0.72, 0.45], [0.68, 0.92], [0.56, 1.26], [0.28, 1.38], [0.01, 1.42]].map(([r, y]) => new THREE.Vector2(r, y));
+  part(bodyPivot, new THREE.LatheGeometry(torsoPts, 22), shirtMat, 0, 0.82, 0, 1.038);
+  part(bodyPivot, new THREE.CylinderGeometry(0.66, 0.72, 0.88, 20, 1, false, -Math.PI * 0.46, Math.PI * 0.92), overallMat, 0, 1.26, 0.04);
 
-  // Sculpted comic head + bushy mustache + angry brows
-  const headGroup = new THREE.Group();
-  headGroup.position.set(0, 2.42, 0.06);
-  bodyPivot.add(headGroup);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 16), skinMat);
-  headGroup.add(head);
-
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), new THREE.MeshStandardMaterial({ color: 0xe36f56, roughness: 0.5 }));
-  nose.position.set(0, -0.02, 0.4);
-  headGroup.add(nose);
-
-  const mustache = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.14, 0.18), beardMat);
-  mustache.position.set(0, -0.14, 0.36);
-  headGroup.add(mustache);
-
-  // Eyes & furious angled brows
-  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x120804 });
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), eyeWhite);
-    eye.position.set(side * 0.16, 0.08, 0.35);
-    headGroup.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), pupilMat);
-    pupil.position.set(side * 0.16, 0.08, 0.42);
-    headGroup.add(pupil);
-
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.08), beardMat);
-    brow.position.set(side * 0.16, 0.19, 0.38);
-    brow.rotation.z = -side * 0.32;
-    headGroup.add(brow);
-  }
-
-  // Headgear: Tall Pleated Chef Toque OR Wide-Brimmed Straw Farm Hat!
   if (isChef) {
-    const toqueMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.4, 0.28, 18), toqueMat);
-    band.position.y = 0.42;
-    headGroup.add(band);
-    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.52, 18, 14), toqueMat);
-    crown.scale.set(1, 0.85, 1);
-    crown.position.y = 0.76;
-    headGroup.add(crown);
+    const scarf = part(bodyPivot, new THREE.TorusGeometry(0.32, 0.075, 10, 18), stdMat({ color: 0xd4261a, roughness: 0.48 }), 0, 2.16, 0);
+    scarf.rotation.x = Math.PI * 0.5;
+    const btnMat = stdMat({ color: 0x241612, roughness: 0.4 });
+    for (const bx of [-0.16, 0.16]) for (const by of [1.82, 2.02]) part(bodyPivot, new THREE.SphereGeometry(0.048, 8, 8), btnMat, bx, by, 0.59);
   } else {
-    const strawMat = new THREE.MeshStandardMaterial({ color: 0xe8b548, roughness: 0.65 });
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.06, 20), strawMat);
-    brim.position.y = 0.32;
-    headGroup.add(brim);
-    const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.34, 18), strawMat);
-    dome.position.y = 0.48;
-    headGroup.add(dome);
-    const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.445, 0.445, 0.09, 18), new THREE.MeshStandardMaterial({ color: 0xc4281c }));
-    ribbon.position.y = 0.36;
-    headGroup.add(ribbon);
+    for (const sx of [-0.24, 0.24]) {
+      const strap = part(bodyPivot, new THREE.BoxGeometry(0.13, 0.56, 0.12), overallMat, sx, 1.9, 0.48);
+      strap.rotation.x = -0.22;
+      const btn = part(bodyPivot, new THREE.CylinderGeometry(0.06, 0.06, 0.05, 10), brassMat, sx, 1.66, 0.68);
+      btn.rotation.x = Math.PI * 0.5;
+    }
   }
 
-  // Right Arm wielding Giant Gleaming 3D Carving Knife!
+  // Sculpted expressive comic head + rosy cheeks + handlebar ginger mustache + brows
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 2.52, 0.08);
+  bodyPivot.add(headGroup);
+  const head = part(headGroup, new THREE.SphereGeometry(0.46, 20, 18), skinMat, 0, 0, 0, 1.04);
+  head.scale.set(1.02, 1.05, 0.98);
+  part(headGroup, new THREE.SphereGeometry(0.13, 12, 12), noseMat, 0, -0.02, 0.46, 1.06);
+  part(headGroup, new THREE.BoxGeometry(0.22, 0.12, 0.08), stdMat({ color: 0x450b0b }), 0, -0.24, 0.39);
+
+  const mCurve = new THREE.CatmullRomCurve3([[-0.36, -0.1, 0.38], [-0.18, -0.17, 0.45], [0, -0.12, 0.47], [0.18, -0.17, 0.45], [0.36, -0.1, 0.38]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  part(headGroup, new THREE.TubeGeometry(mCurve, 16, 0.082, 8, false), hairMat, 0, 0, 0, 1.05);
+
+  const eyeWhite = stdMat({ color: 0xffffff, emissive: 0x222222, emissiveIntensity: 0.2 });
+  const pupilMat = stdMat({ color: 0x120804 });
+  for (const s of [-1, 1]) {
+    part(headGroup, new THREE.SphereGeometry(0.11, 10, 10), skinMat, s * 0.45, -0.02, 0.02);
+    const ch = part(headGroup, new THREE.SphereGeometry(0.13, 10, 10), noseMat, s * 0.26, -0.06, 0.34);
+    ch.scale.set(1, 0.72, 0.5);
+    part(headGroup, new THREE.SphereGeometry(0.105, 12, 12), eyeWhite, s * 0.17, 0.11, 0.38, 1.06);
+    part(headGroup, new THREE.SphereGeometry(0.052, 8, 8), pupilMat, s * 0.17, 0.11, 0.47);
+    const br = part(headGroup, new THREE.BoxGeometry(0.24, 0.08, 0.1), hairMat, s * 0.17, 0.24, 0.41, 1.06);
+    br.rotation.z = -s * 0.36;
+  }
+
+  if (isChef) {
+    const toqueMat = stdMat({ color: 0xffffff, roughness: 0.38 });
+    part(headGroup, new THREE.CylinderGeometry(0.45, 0.43, 0.32, 20), toqueMat, 0, 0.42, 0, 1.04);
+    for (let p = 0; p < 6; p++) {
+      const a = (p / 6) * Math.PI * 2;
+      part(headGroup, new THREE.SphereGeometry(0.32, 14, 12), toqueMat, Math.cos(a) * 0.26, 0.78, Math.sin(a) * 0.26, 1.04);
+    }
+    part(headGroup, new THREE.SphereGeometry(0.42, 16, 12), toqueMat, 0, 0.94, 0, 1.04);
+  } else {
+    const strawMat = stdMat({ map: textures.strawHat, roughness: 0.62, side: THREE.DoubleSide });
+    part(headGroup, new THREE.CylinderGeometry(0.92, 0.95, 0.08, 24), strawMat, 0, 0.34, 0, 1.03);
+    const cPts = [[0.46, 0.34], [0.45, 0.56], [0.38, 0.74], [0.01, 0.76]].map(([r, y]) => new THREE.Vector2(r, y));
+    part(headGroup, new THREE.LatheGeometry(cPts, 24), strawMat, 0, 0, 0, 1.035);
+    part(headGroup, new THREE.CylinderGeometry(0.465, 0.475, 0.12, 22), stdMat({ color: 0xd9261a, roughness: 0.46 }), 0, 0.43, 0);
+  }
+
+  const dizzyGroup = new THREE.Group();
+  dizzyGroup.position.y = 1.38;
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xffe44d });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    part(dizzyGroup, new THREE.OctahedronGeometry(0.14, 0), starMat, Math.cos(a) * 0.62, 0, Math.sin(a) * 0.62);
+  }
+  dizzyGroup.visible = false;
+  headGroup.add(dizzyGroup);
+
   const rightArm = new THREE.Group();
-  rightArm.position.set(-0.68, 1.95, 0.1);
-  const rSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.15, 0.72, 12), shirtMat);
-  rSleeve.position.y = -0.3;
-  rSleeve.rotation.x = 0.85;
-  rightArm.add(rSleeve);
-  const giantKnife = createCarvingKnifeMesh(1.45);
-  giantKnife.position.set(0, -0.52, 0.52);
-  giantKnife.rotation.set(0.25, Math.PI * 0.5, 0);
+  rightArm.position.set(-0.72, 1.98, 0.08);
+  const rU = part(rightArm, new THREE.CapsuleGeometry(0.16, 0.48, 8, 12), shirtMat, 0, -0.22, 0.24, 1.05);
+  rU.rotation.x = 0.92;
+  part(rightArm, new THREE.SphereGeometry(0.15, 12, 10), skinMat, 0, -0.38, 0.56, 1.05);
+  const giantKnife = createCarvingKnifeMesh(1.42, true);
+  giantKnife.position.set(0.05, -0.34, 0.72);
+  giantKnife.rotation.set(0.12, Math.PI * 0.5, 0.18);
   rightArm.add(giantKnife);
   bodyPivot.add(rightArm);
 
-  // Left Arm holding Glowing Searchlight Lantern (Farmhand) OR Roasting Fork (Chef)!
   const leftArm = new THREE.Group();
-  leftArm.position.set(0.68, 1.95, 0.1);
-  const lSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.15, 0.68, 12), shirtMat);
-  lSleeve.position.y = -0.28;
-  lSleeve.rotation.x = 0.65;
-  leftArm.add(lSleeve);
-
-  const lanternGlow = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.14, 0.28, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffe484, emissive: 0xffa824, emissiveIntensity: 1.8 }),
-  );
-  lanternGlow.position.set(0, -0.56, 0.36);
-  leftArm.add(lanternGlow);
+  leftArm.position.set(0.72, 1.98, 0.08);
+  const lU = part(leftArm, new THREE.CapsuleGeometry(0.16, 0.46, 8, 12), shirtMat, 0, -0.22, 0.22, 1.05);
+  lU.rotation.x = 0.75;
+  part(leftArm, new THREE.SphereGeometry(0.15, 12, 10), skinMat, 0, -0.38, 0.5, 1.05);
+  if (isChef) {
+    const fMat = stdMat({ color: 0xeef5fc, metalness: 0.88, roughness: 0.16 });
+    const sh = part(leftArm, new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8), fMat, 0, -0.34, 0.85);
+    sh.rotation.x = Math.PI * 0.45;
+    for (const px of [-0.08, 0.08]) {
+      const pr = part(leftArm, new THREE.CylinderGeometry(0.022, 0.028, 0.36, 8), fMat, px, -0.28, 1.38);
+      pr.rotation.x = Math.PI * 0.45;
+    }
+  } else {
+    part(leftArm, new THREE.CylinderGeometry(0.14, 0.12, 0.3, 12), stdMat({ color: 0xffe999, emissive: 0xffa61f, emissiveIntensity: 2.0 }), 0, -0.58, 0.56);
+    part(leftArm, new THREE.ConeGeometry(0.19, 0.14, 12), brassMat, 0, -0.4, 0.56);
+  }
   bodyPivot.add(leftArm);
 
-  // Heavy stomping legs & boots
-  const leftLeg = new THREE.Group();
-  leftLeg.position.set(-0.28, 0.85, 0);
-  const lPant = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.18, 0.65, 12), pantsMat);
-  lPant.position.y = -0.32;
-  const lBoot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.26, 0.52), bootMat);
-  lBoot.position.set(0, -0.72, 0.08);
-  leftLeg.add(lPant, lBoot);
-  root.add(leftLeg);
+  const buildBootLeg = (side) => {
+    const leg = new THREE.Group();
+    leg.position.set(side * 0.29, 0.88, 0);
+    part(leg, new THREE.CylinderGeometry(0.2, 0.18, 0.62, 12), pantsMat, 0, -0.3, 0, 1.05);
+    part(leg, new THREE.BoxGeometry(0.32, 0.26, 0.56), bootMat, 0, -0.72, 0.09, 1.05);
+    return leg;
+  };
+  const leftLeg = buildBootLeg(-1);
+  const rightLeg = buildBootLeg(1);
+  root.add(leftLeg, rightLeg);
 
-  const rightLeg = new THREE.Group();
-  rightLeg.position.set(0.28, 0.85, 0);
-  const rPant = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.18, 0.65, 12), pantsMat);
-  rPant.position.y = -0.32;
-  const rBoot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.26, 0.52), bootMat);
-  rBoot.position.set(0, -0.72, 0.08);
-  rightLeg.add(rPant, rBoot);
-  root.add(rightLeg);
-
-  // Real 3D Volumetric Vision / Threat Cone projected on the floor!
-  const coneGeo = new THREE.ConeGeometry(2.6, 6.2, 24, 1, true);
-  coneGeo.rotateX(Math.PI * 0.5);
-  coneGeo.translate(0, 0.08, 3.2);
-  const coneMat = new THREE.MeshBasicMaterial({
-    color: 0xff451f,
-    transparent: true,
-    opacity: 0.2,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const threatCone = new THREE.Mesh(coneGeo, coneMat);
-  root.add(threatCone);
+  const coneGeo = new THREE.RingGeometry(0.6, 5.2, 24, 1, -0.46, 0.92);
+  coneGeo.rotateX(-Math.PI * 0.5);
+  coneGeo.rotateY(-Math.PI * 0.5);
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0xff3f1a, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false });
+  const threatCone = part(root, coneGeo, coneMat, 0, 0.06, 0);
+  threatCone.userData.noShadow = true;
 
   enableShadow(root, true, true);
-  threatCone.castShadow = false;
-  threatCone.receiveShadow = false;
-
-  return { root, bodyPivot, headGroup, head, skinMat, rightArm, leftArm, leftLeg, rightLeg, threatCone, coneMat };
+  return { root, bodyPivot, headGroup, head, skinMat, dizzyGroup, rightArm, leftArm, leftLeg, rightLeg, threatCone, coneMat };
 }
 
-export function createRoastingOvenMesh(facingDir = 1) {
+export function createRoastingOvenMesh(textures, isKitchenHearth = false) {
   const group = new THREE.Group();
+  const ironMat = stdMat({ color: 0x383236, roughness: 0.36, metalness: 0.72 });
+  const trimIronMat = stdMat({ color: 0x544b52, roughness: 0.32, metalness: 0.78 });
+  const copperMat = stdMat({ color: 0xe68238, roughness: 0.24, metalness: 0.82 });
+  const brassMat = stdMat({ color: 0xffc845, roughness: 0.22, metalness: 0.86 });
+  const dialMat = stdMat({ map: textures.ovenDial, emissive: 0xff5a1f, emissiveIntensity: 0.45 });
 
-  const ironMat = new THREE.MeshStandardMaterial({ color: 0x262224, roughness: 0.42, metalness: 0.68 });
-  const copperMat = new THREE.MeshStandardMaterial({ color: 0xd97a36, roughness: 0.28, metalness: 0.78 });
-  const brassMat = new THREE.MeshStandardMaterial({ color: 0xf5ba3d, roughness: 0.25, metalness: 0.82 });
-  const fireCoreMat = new THREE.MeshBasicMaterial({ color: 0xfff08a });
-  const dialMat = new THREE.MeshStandardMaterial({ color: 0xe62e17, emissive: 0xb81d0a, emissiveIntensity: 0.85 });
+  if (isKitchenHearth) {
+    part(group, new THREE.BoxGeometry(2.72, 3.25, 1.65), stdMat({ map: textures.brickWall, roughness: 0.7 }), 0.35, 1.62, -0.68);
+  }
+  part(group, new THREE.BoxGeometry(2.35, 2.38, 2.05), ironMat, 0, 1.32, 0, 1.025);
+  for (const [fx, fz] of [[-0.95, -0.8], [0.95, -0.8], [-0.95, 0.8], [0.95, 0.8]]) part(group, new THREE.CylinderGeometry(0.14, 0.18, 0.26, 10), trimIronMat, fx, 0.13, fz);
+  part(group, new THREE.BoxGeometry(2.58, 0.24, 2.26), copperMat, 0, 2.56, 0, 1.025);
+  const hood = part(group, new THREE.CylinderGeometry(0.45, 1.15, 0.72, 4), copperMat, 0.2, 3.0, 0);
+  hood.rotation.y = Math.PI * 0.25;
+  part(group, new THREE.CylinderGeometry(0.28, 0.32, 1.45, 14), ironMat, 0.2, 3.9, 0);
+  const rim = part(group, new THREE.TorusGeometry(0.31, 0.06, 8, 16), brassMat, 0.2, 4.55, 0);
+  rim.rotation.x = Math.PI * 0.5;
 
-  // Heavy cast-iron stove body
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.35, 2.1), ironMat);
-  chassis.position.y = 1.24;
-  group.add(chassis);
-
-  // Polished copper mantle top & chimney pipe
-  const mantle = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 2.3), copperMat);
-  mantle.position.y = 2.45;
-  group.add(mantle);
-
-  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 1.35, 14), ironMat);
-  chimney.position.set(-facingDir * 0.55, 3.12, -0.45);
-  group.add(chimney);
-
-  // Red 450°F dial plaque & brass burner knobs
-  const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.82), dialMat);
-  plaque.position.set(facingDir * 1.14, 2.08, -0.32);
-  group.add(plaque);
-
-  for (const kz of [0.36, 0.7]) {
-    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.14, 12), brassMat);
-    knob.rotation.z = Math.PI * 0.5;
-    knob.position.set(facingDir * 1.16, 2.08, kz);
-    group.add(knob);
+  part(group, new THREE.BoxGeometry(1.52, 0.78, 0.06), brassMat, -0.08, 2.02, 1.01);
+  part(group, new THREE.PlaneGeometry(1.42, 0.68), dialMat, -0.08, 2.02, 1.045);
+  for (const kx of [-0.62, -0.2, 0.22, 0.64]) {
+    const k = part(group, new THREE.CylinderGeometry(0.09, 0.09, 0.14, 12), brassMat, kx, 1.38, 1.05);
+    k.rotation.x = Math.PI * 0.5;
   }
 
-  // Glowing interior firebox cavity + red-hot heating coils
-  const firebox = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.18, 1.48), fireCoreMat);
-  firebox.position.set(facingDir * 1.08, 1.06, 0);
-  group.add(firebox);
+  part(group, new THREE.BoxGeometry(0.22, 1.24, 1.48), new THREE.MeshBasicMaterial({ color: 0xfff5a8 }), -1.12, 1.08, 0);
+  const coilMat = new THREE.MeshBasicMaterial({ color: 0xff4512 });
+  for (const cy of [0.76, 1.08, 1.38]) part(group, new THREE.BoxGeometry(0.26, 0.09, 1.36), coilMat, -1.14, cy, 0);
 
-  const coilMat = new THREE.MeshBasicMaterial({ color: 0xff3b0a });
-  for (const cy of [0.76, 1.06, 1.34]) {
-    const coil = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.08, 1.38), coilMat);
-    coil.position.set(facingDir * 1.1, cy, 0);
-    group.add(coil);
-  }
-
-  // Hinged 3D Cast-Iron Door with brass handle bar (swings downward when blasting!)
   const doorPivot = new THREE.Group();
-  doorPivot.position.set(facingDir * 1.16, 0.48, 0);
-  const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.18, 1.54), ironMat);
-  doorMesh.position.y = 0.59;
-  const doorHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.18, 10), brassMat);
-  doorHandle.rotation.x = Math.PI * 0.5;
-  doorHandle.position.set(facingDir * 0.1, 1.02, 0);
-  doorPivot.add(doorMesh, doorHandle);
+  doorPivot.position.set(-1.2, 0.48, 0);
+  part(doorPivot, new THREE.BoxGeometry(0.11, 1.22, 1.54), trimIronMat, 0, 0.61, 0);
+  const dH = part(doorPivot, new THREE.CylinderGeometry(0.045, 0.045, 1.2, 10), brassMat, -0.1, 1.04, 0);
+  dH.rotation.x = Math.PI * 0.5;
   group.add(doorPivot);
 
-  // Multi-Layered Volumetric 3D Roaring Flame Jet Cones!
+  const fireMat = createVolumetricFireMaterial();
   const flameGroup = new THREE.Group();
-  flameGroup.position.set(facingDir * 1.18, 1.05, 0);
-
-  const outerFlameGeo = new THREE.ConeGeometry(0.76, 4.5, 16);
-  outerFlameGeo.rotateZ(-facingDir * Math.PI * 0.5);
-  outerFlameGeo.translate(facingDir * 2.25, 0, 0);
-  const outerFlameMat = new THREE.MeshBasicMaterial({
-    color: 0xff3d08,
-    transparent: true,
-    opacity: 0.78,
-  });
-  const outerFlame = new THREE.Mesh(outerFlameGeo, outerFlameMat);
-
-  const midFlameGeo = new THREE.ConeGeometry(0.54, 3.6, 14);
-  midFlameGeo.rotateZ(-facingDir * Math.PI * 0.5);
-  midFlameGeo.translate(facingDir * 1.8, 0.04, 0);
-  const midFlame = new THREE.Mesh(
-    midFlameGeo,
-    new THREE.MeshBasicMaterial({ color: 0xff941a, transparent: true, opacity: 0.88 }),
-  );
-
-  const innerFlameGeo = new THREE.ConeGeometry(0.32, 2.55, 12);
-  innerFlameGeo.rotateZ(-facingDir * Math.PI * 0.5);
-  innerFlameGeo.translate(facingDir * 1.28, 0.06, 0);
-  const innerFlameMat = new THREE.MeshBasicMaterial({
-    color: 0xfff8b8,
-    transparent: true,
-    opacity: 0.96,
-  });
-  const innerFlame = new THREE.Mesh(innerFlameGeo, innerFlameMat);
-
-  // Side flame tongues for organic fiery silhouette
-  for (const sideZ of [-0.36, 0.36]) {
-    const tGeo = new THREE.ConeGeometry(0.28, 2.7, 10);
-    tGeo.rotateZ(-facingDir * Math.PI * 0.5);
-    tGeo.translate(facingDir * 1.45, -0.05, sideZ);
-    const tongue = new THREE.Mesh(
-      tGeo,
-      new THREE.MeshBasicMaterial({ color: 0xff6e14, transparent: true, opacity: 0.82 }),
-    );
-    tongue.rotation.y = sideZ * facingDir * 0.14;
-    flameGroup.add(tongue);
-  }
-
-  flameGroup.add(outerFlame, midFlame, innerFlame);
+  flameGroup.position.set(-1.12, 1.08, 0);
+  const makeJet = (pts, seg, rotX = 0) => {
+    const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
+    g.rotateZ(Math.PI * 0.5);
+    if (rotX) g.rotateX(rotX);
+    const m = part(flameGroup, g, fireMat);
+    m.userData.noShadow = true;
+  };
+  makeJet([[0.38, 0], [0.76, 0.65], [0.72, 1.8], [0.52, 3.1], [0.24, 4.15], [0.03, 4.75]], 20);
+  makeJet([[0.24, 0], [0.48, 0.55], [0.42, 1.65], [0.22, 2.75], [0.02, 3.45]], 16, 1.1);
+  const sheetGeo = new THREE.ConeGeometry(0.72, 4.6, 4, 14, true);
+  sheetGeo.translate(0, 2.3, 0);
+  sheetGeo.rotateZ(Math.PI * 0.5);
+  part(flameGroup, sheetGeo, fireMat).userData.noShadow = true;
   flameGroup.visible = false;
   group.add(flameGroup);
 
-  // Dynamic warm firelight PointLight illuminating the surrounding 3D tiles & characters!
-  const fireLight = new THREE.PointLight(0xff771c, 2.2, 11);
-  fireLight.position.set(facingDir * 1.8, 1.3, 0);
+  const fireLight = new THREE.PointLight(0xff7d1a, 2.4, 12);
+  fireLight.position.set(-2.2, 1.5, 0.8);
   group.add(fireLight);
 
   enableShadow(group, true, true);
-  flameGroup.traverse((m) => {
-    if (m.isMesh) {
-      m.castShadow = false;
-      m.receiveShadow = false;
-    }
-  });
-
-  return { group, doorPivot, flameGroup, outerFlame, innerFlame, fireLight };
+  return { group, doorPivot, flameGroup, fireMat, fireLight };
 }
 
-export function createCarvingKnifeMesh(scale = 1) {
+export function createCarvingKnifeMesh(scale = 1, withSlashArc = false) {
   const group = new THREE.Group();
+  const brassMat = stdMat({ color: 0xfac343, metalness: 0.88, roughness: 0.2 });
+  const steelMat = stdMat({ color: 0xf7fbff, metalness: 0.88, roughness: 0.1, emissive: 0x465d78, emissiveIntensity: 0.48 });
 
-  const handleMat = new THREE.MeshStandardMaterial({ color: 0x4d1e0a, roughness: 0.5 });
-  const brassMat = new THREE.MeshStandardMaterial({ color: 0xf5be42, metalness: 0.86, roughness: 0.22 });
-  const steelMat = new THREE.MeshStandardMaterial({
-    color: 0xf4f9ff,
-    metalness: 0.86,
-    roughness: 0.12,
-    emissive: 0x3b4f66,
-    emissiveIntensity: 0.42,
-  });
-  const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-
-  // Ergonomic walnut handle + 3 brass rivets
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.15, 0.1), handleMat);
-  handle.position.x = -0.46;
-  group.add(handle);
-
+  part(group, new THREE.BoxGeometry(0.58, 0.16, 0.1), stdMat({ color: 0x4d1d09, roughness: 0.48 }), -0.46, 0, 0, 1.06);
   for (const rx of [-0.62, -0.46, -0.3]) {
-    const rivet = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.115, 8), brassMat);
-    rivet.rotation.x = Math.PI * 0.5;
-    rivet.position.set(rx, 0.01, 0);
-    group.add(rivet);
+    const rv = part(group, new THREE.CylinderGeometry(0.026, 0.026, 0.12, 8), brassMat, rx, 0.01, 0);
+    rv.rotation.x = Math.PI * 0.5;
   }
+  part(group, new THREE.BoxGeometry(0.11, 0.3, 0.13), brassMat, -0.14, 0, 0);
 
-  // Forged brass finger bolster
-  const bolster = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.13), brassMat);
-  bolster.position.x = -0.14;
-  group.add(bolster);
+  const bShape = new THREE.Shape();
+  bShape.moveTo(-0.1, 0.13);
+  bShape.lineTo(1.42, 0.08);
+  bShape.quadraticCurveTo(0.9, -0.16, -0.1, -0.18);
+  bShape.closePath();
+  const bGeo = new THREE.ExtrudeGeometry(bShape, { depth: 0.028, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.01, bevelSegments: 2 });
+  bGeo.translate(0, 0, -0.014);
+  part(group, bGeo, steelMat, 0, 0, 0, 1.045);
 
-  // True forged chef's carving blade silhouette (straight spine + sweeping curved razor belly to needle point!)
-  const bladeShape = new THREE.Shape();
-  bladeShape.moveTo(-0.1, 0.12);
-  bladeShape.lineTo(1.36, 0.07);
-  bladeShape.quadraticCurveTo(0.88, -0.15, -0.1, -0.17);
-  bladeShape.closePath();
-
-  const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, {
-    depth: 0.028,
-    bevelEnabled: true,
-    bevelThickness: 0.008,
-    bevelSize: 0.01,
-    bevelSegments: 2,
-  });
-  bladeGeo.translate(0, 0, -0.014);
-  const blade = new THREE.Mesh(bladeGeo, steelMat);
-  group.add(blade);
-
-  // Gleaming white razor-edge glint strip
-  const glint = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.028, 0.048), edgeMat);
-  glint.position.set(0.58, -0.08, 0);
+  const glint = part(group, new THREE.BoxGeometry(1.36, 0.032, 0.052), new THREE.MeshBasicMaterial({ color: 0xffffff }), 0.6, -0.08, 0);
   glint.rotation.z = 0.11;
-  group.add(glint);
+  glint.userData.noShadow = true;
+
+  if (withSlashArc) {
+    const sl = part(group, new THREE.RingGeometry(1.16, 1.44, 20, 1, -0.65, 1.45), createKnifeSlashMaterial(), 0.28, 0, 0);
+    sl.userData.noShadow = true;
+  }
 
   group.scale.setScalar(scale);
   enableShadow(group, true, false);
-  glint.castShadow = false;
   return group;
 }
 
-export function createCleaverPendulumMesh(height = 5.4) {
+export function createCleaverPendulumMesh(height = 5.8) {
   const root = new THREE.Group();
   const pivot = new THREE.Group();
   pivot.position.y = height;
   root.add(pivot);
-
-  const chainMat = new THREE.MeshStandardMaterial({ color: 0x38302e, metalness: 0.75, roughness: 0.4 });
-  const steelMat = new THREE.MeshStandardMaterial({ color: 0xeaf2fa, metalness: 0.9, roughness: 0.14 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b2f14, roughness: 0.55 });
-
-  const rodLen = height - 1.35;
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, rodLen, 10), chainMat);
-  rod.position.y = -rodLen * 0.5;
-  pivot.add(rod);
-
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.65, 10), woodMat);
-  handle.position.set(0, -rodLen - 0.1, -0.55);
-  handle.rotation.x = Math.PI * 0.5;
-  pivot.add(handle);
-
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.15, 1.55), steelMat);
-  blade.position.set(0, -rodLen - 0.35, 0.25);
-  pivot.add(blade);
-
+  const chainMat = stdMat({ color: 0x3b312e, metalness: 0.78, roughness: 0.36 });
+  const steelMat = stdMat({ color: 0xf2f8ff, metalness: 0.9, roughness: 0.12, emissive: 0x3b4d63, emissiveIntensity: 0.38 });
+  const rodLen = height - 1.5;
+  part(pivot, new THREE.CylinderGeometry(0.055, 0.055, rodLen, 10), chainMat, 0, -rodLen * 0.5, 0);
+  const h = part(pivot, new THREE.CylinderGeometry(0.095, 0.095, 0.68, 10), stdMat({ color: 0x692b12, roughness: 0.52 }), -0.56, -rodLen - 0.1, 0, 1.06);
+  h.rotation.z = Math.PI * 0.5;
+  part(pivot, new THREE.BoxGeometry(1.55, 1.12, 0.09), steelMat, 0.22, -rodLen - 0.36, 0, 1.04);
+  const hole = part(pivot, new THREE.CylinderGeometry(0.11, 0.11, 0.12, 12), chainMat, 0.7, -rodLen - 0.04, 0);
+  hole.rotation.x = Math.PI * 0.5;
   enableShadow(root, true, false);
-  return { root, pivot, bobLocalY: -rodLen - 0.35 };
+  return { root, pivot, bobLocalY: -rodLen - 0.36 };
+}
+
+export function createSculptedPumpkinMesh(scale = 1) {
+  const group = new THREE.Group();
+  const pMat = stdMat({ color: 0xf26d16, roughness: 0.42, emissive: 0x2b0e00, emissiveIntensity: 0.12 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const lobe = part(group, new THREE.SphereGeometry(0.38, 12, 10), pMat, Math.cos(a) * 0.18, 0.4, Math.sin(a) * 0.18);
+    lobe.scale.set(0.88, 0.96, 1.12);
+    lobe.rotation.y = -a;
+  }
+  const stemCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.72, 0), new THREE.Vector3(0.05, 0.92, 0.02), new THREE.Vector3(0.14, 1.0, 0.04)]);
+  part(group, new THREE.TubeGeometry(stemCurve, 8, 0.06, 6, false), stdMat({ color: 0x456b20, roughness: 0.68 }));
+  group.scale.setScalar(scale);
+  enableShadow(group, true, true);
+  return group;
 }
 
 export function createCoverPropMesh(kind, textures) {
   const group = new THREE.Group();
   if (kind === 'haystack') {
-    const mat = new THREE.MeshStandardMaterial({ map: textures.hayWeave, roughness: 0.85 });
-    const mound = new THREE.Mesh(new THREE.ConeGeometry(1.42, 1.68, 16), mat);
-    mound.position.y = 0.84;
-    const base = new THREE.Mesh(new THREE.SphereGeometry(1.36, 16, 12), mat);
-    base.scale.set(1, 0.62, 1);
-    base.position.y = 0.52;
-    group.add(mound, base);
+    const mat = stdMat({ map: textures.hayWeave, roughness: 0.82 });
+    part(group, new THREE.ConeGeometry(1.48, 1.85, 16), mat, 0, 0.94, 0, 1.03);
+    part(group, new THREE.SphereGeometry(1.42, 16, 12), mat, 0, 0.56, 0).scale.set(1, 0.64, 1);
   } else if (kind === 'pumpkinPatch') {
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x3b6922, roughness: 0.74 });
-    const leafLightMat = new THREE.MeshStandardMaterial({ color: 0x52822c, roughness: 0.72 });
-    for (const [lx, ly, lz, rx, ry, rz, lite] of [
-      [0, 0.48, 0, 0.92, 0.52, 0.88, false],
-      [-0.62, 0.38, -0.25, 0.68, 0.45, 0.65, true],
-      [0.64, 0.4, -0.18, 0.66, 0.46, 0.62, true],
-      [0.05, 0.36, -0.58, 0.72, 0.42, 0.58, false],
-    ]) {
-      const tuft = new THREE.Mesh(new THREE.SphereGeometry(1.0, 12, 10), lite ? leafLightMat : leafMat);
-      tuft.scale.set(rx, ry, rz);
-      tuft.position.set(lx, ly, lz);
-      group.add(tuft);
+    const lm = stdMat({ color: 0x3b6b20, roughness: 0.74 });
+    const lb = stdMat({ color: 0x55872c, roughness: 0.7 });
+    for (const [lx, ly, lz, rx, ry, rz, b] of [[0, 0.52, 0, 1.05, 0.55, 0.9, 0], [-0.72, 0.42, 0.18, 0.72, 0.46, 0.65, 1], [0.74, 0.44, 0.14, 0.74, 0.48, 0.66, 1], [0, 0.38, -0.52, 0.85, 0.42, 0.6, 0]]) {
+      part(group, new THREE.SphereGeometry(1, 12, 10), b ? lb : lm, lx, ly, lz).scale.set(rx, ry, rz);
     }
-    for (const [px, pz, s] of [[-0.68, 0.52, 0.52], [0.68, 0.46, 0.46], [0.02, 0.72, 0.58], [-0.15, -0.45, 0.44]]) {
-      const p = createKickPropMesh('pumpkin');
-      p.scale.setScalar(s / 0.46);
+    for (const [px, pz, s] of [[-0.68, 0.56, 1.05], [0.68, 0.52, 0.92], [0.02, 0.74, 1.18]]) {
+      const p = createSculptedPumpkinMesh(s);
       p.position.set(px, 0, pz);
       group.add(p);
     }
   } else if (kind === 'flourBarrel') {
-    const oakMat = new THREE.MeshStandardMaterial({ map: textures.woodPlank, roughness: 0.65 });
-    const bandMat = new THREE.MeshStandardMaterial({ color: 0x2e2624, metalness: 0.7, roughness: 0.4 });
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.86, 1.65, 16), oakMat);
-    barrel.position.y = 0.82;
-    const b1 = new THREE.Mesh(new THREE.TorusGeometry(0.84, 0.05, 8, 20), bandMat);
-    b1.rotation.x = Math.PI * 0.5;
-    b1.position.y = 1.32;
-    const b2 = b1.clone();
-    b2.position.y = 0.36;
-    group.add(barrel, b1, b2);
+    part(group, new THREE.CylinderGeometry(0.84, 0.88, 1.72, 16), stdMat({ map: textures.woodPlank, roughness: 0.62 }), 0, 0.86, 0, 1.03);
+    const bm = stdMat({ color: 0x2e2624, metalness: 0.72, roughness: 0.38 });
+    for (const by of [0.38, 1.38]) part(group, new THREE.TorusGeometry(0.86, 0.055, 8, 20), bm, 0, by, 0).rotation.x = Math.PI * 0.5;
   } else {
-    // Festive Gingham Thanksgiving Kitchen Table topped with a Golden Pumpkin Pie!
-    const clothMat = new THREE.MeshStandardMaterial({ map: textures.gingham, roughness: 0.62 });
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x6e3516, roughness: 0.55 });
-    const top = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.22, 1.85), woodMat);
-    top.position.y = 1.54;
-    const drape = new THREE.Mesh(new THREE.BoxGeometry(2.42, 1.32, 1.78), clothMat);
-    drape.position.y = 0.82;
-    // Pumpkin pie on top!
-    const pieCrust = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.38, 0.16, 16), new THREE.MeshStandardMaterial({ color: 0xd98a2b }));
-    pieCrust.position.set(0, 1.72, 0);
-    const cream = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshStandardMaterial({ color: 0xfff9eb }));
-    cream.position.set(0, 1.84, 0);
-    group.add(top, drape, pieCrust, cream);
+    part(group, new THREE.BoxGeometry(2.65, 0.22, 1.75), stdMat({ color: 0x703616, roughness: 0.52 }), 0, 1.56, 0);
+    part(group, new THREE.BoxGeometry(2.54, 1.36, 1.66), stdMat({ map: textures.gingham, roughness: 0.58 }), 0, 0.82, 0, 1.02);
+    part(group, new THREE.CylinderGeometry(0.54, 0.42, 0.18, 18), stdMat({ color: 0xeb9c34, roughness: 0.42 }), 0, 1.74, 0);
+    part(group, new THREE.CylinderGeometry(0.46, 0.46, 0.04, 18), stdMat({ color: 0xc95216, roughness: 0.48 }), 0, 1.83, 0);
+    part(group, new THREE.SphereGeometry(0.16, 10, 10), stdMat({ color: 0xfffaf0, roughness: 0.3 }), 0, 1.92, 0);
   }
   enableShadow(group, true, true);
   return group;
@@ -609,29 +477,16 @@ export function createCoverPropMesh(kind, textures) {
 export function createKickPropMesh(kind) {
   const group = new THREE.Group();
   if (kind === 'flourSack') {
-    const sackMat = new THREE.MeshStandardMaterial({ color: 0xf7eedc, roughness: 0.78 });
-    const tieMat = new THREE.MeshStandardMaterial({ color: 0xc93322, roughness: 0.5 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.52, 14, 12), sackMat);
-    body.scale.set(0.95, 1.12, 0.88);
-    body.position.y = 0.52;
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.16, 0.22, 12), tieMat);
-    neck.position.y = 1.05;
-    group.add(body, neck);
+    const sm = stdMat({ color: 0xfbf3e3, roughness: 0.74 });
+    part(group, new THREE.SphereGeometry(0.52, 16, 14), sm, 0, 0.52, 0, 1.04).scale.set(0.95, 1.14, 0.9);
+    part(group, new THREE.CylinderGeometry(0.24, 0.16, 0.22, 12), stdMat({ color: 0xd42c1a, roughness: 0.48 }), 0, 1.06, 0);
+    part(group, new THREE.ConeGeometry(0.26, 0.24, 10), sm, 0, 1.24, 0).rotation.x = Math.PI;
   } else if (kind === 'copperPot') {
-    const copMat = new THREE.MeshStandardMaterial({ color: 0xe07b34, metalness: 0.78, roughness: 0.24 });
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.46, 0.72, 16), copMat);
-    pot.position.y = 0.36;
-    group.add(pot);
+    const cm = stdMat({ color: 0xe68036, metalness: 0.82, roughness: 0.2 });
+    part(group, new THREE.CylinderGeometry(0.5, 0.46, 0.72, 16), cm, 0, 0.36, 0, 1.04);
+    part(group, new THREE.TorusGeometry(0.5, 0.05, 8, 18), cm, 0, 0.72, 0).rotation.x = Math.PI * 0.5;
   } else {
-    // Plump Harvest Pumpkin
-    const pMat = new THREE.MeshStandardMaterial({ color: 0xeb6e1a, roughness: 0.46 });
-    const stemMat = new THREE.MeshStandardMaterial({ color: 0x4d6e24, roughness: 0.7 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), pMat);
-    body.scale.set(1.08, 0.86, 1.08);
-    body.position.y = 0.43;
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.24, 8), stemMat);
-    stem.position.y = 0.88;
-    group.add(body, stem);
+    return createSculptedPumpkinMesh(1.05);
   }
   enableShadow(group, true, true);
   return group;
@@ -640,36 +495,15 @@ export function createKickPropMesh(kind) {
 export function createPickupMesh(kind) {
   const group = new THREE.Group();
   if (kind === 'corn') {
-    const cob = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.13, 0.28, 8, 12),
-      new THREE.MeshStandardMaterial({ color: 0xffcf33, roughness: 0.3, emissive: 0x5c3d00 }),
-    );
-    const huskMat = new THREE.MeshStandardMaterial({ color: 0x4e8c28, roughness: 0.58 });
-    for (const angle of [-0.42, 0.42]) {
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.32, 7), huskMat);
-      leaf.position.set(Math.sin(angle) * 0.1, -0.1, 0);
-      leaf.rotation.z = angle;
-      group.add(leaf);
-    }
-    group.add(cob);
-    group.rotation.z = 0.22;
+    part(group, new THREE.CapsuleGeometry(0.14, 0.28, 8, 12), stdMat({ color: 0xffd236, roughness: 0.28, emissive: 0x6b4700, emissiveIntensity: 0.3 }));
+    const hm = stdMat({ color: 0x4b8c26, roughness: 0.56 });
+    for (const a of [-0.45, 0.45]) part(group, new THREE.ConeGeometry(0.12, 0.32, 7), hm, Math.sin(a) * 0.1, -0.1, 0).rotation.z = a;
+    group.rotation.z = 0.24;
   } else if (kind === 'cranberry') {
-    const mat = new THREE.MeshStandardMaterial({ color: 0xe61e32, roughness: 0.18, metalness: 0.15, emissive: 0x4a040c });
-    for (const [x, y, z] of [[-0.14, 0, 0], [0.14, 0, 0], [0, 0.18, 0.06]]) {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), mat);
-      b.position.set(x, y, z);
-      group.add(b);
-    }
+    const bm = stdMat({ color: 0xed1c34, roughness: 0.16, metalness: 0.15, emissive: 0x5c0610, emissiveIntensity: 0.35 });
+    for (const [x, y, z] of [[-0.14, 0, 0], [0.14, 0, 0], [0, 0.18, 0.05]]) part(group, new THREE.SphereGeometry(0.17, 12, 12), bm, x, y, z);
   } else {
-    // Radiant Golden Turkey Feather!
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xffe052,
-      roughness: 0.22,
-      metalness: 0.45,
-      emissive: 0x996300,
-    });
-    const plume = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.82, 0.06), mat);
-    group.add(plume);
+    part(group, new THREE.BoxGeometry(0.28, 0.84, 0.07), stdMat({ color: 0xffe459, roughness: 0.2, metalness: 0.5, emissive: 0xad7200, emissiveIntensity: 0.45 }));
   }
   enableShadow(group, true, false);
   return group;
@@ -677,30 +511,31 @@ export function createPickupMesh(kind) {
 
 export function createExitGateMesh(isFinalFreedom, textures) {
   const group = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ map: textures.woodPlank, roughness: 0.6 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffcb47, metalness: 0.75, roughness: 0.25, emissive: 0x664200 });
+  const woodMat = stdMat({ map: textures.woodPlank, roughness: 0.58 });
+  const goldMat = stdMat({ color: 0xffce4a, metalness: 0.78, roughness: 0.22, emissive: 0x734a00, emissiveIntensity: 0.3 });
+  part(group, new THREE.BoxGeometry(0.75, 4.9, 0.75), woodMat, 0, 2.45, -2.55, 1.02);
+  part(group, new THREE.BoxGeometry(0.75, 4.9, 0.75), woodMat, 0, 2.45, 2.55, 1.02);
+  part(group, new THREE.BoxGeometry(0.92, 0.8, 6.1), isFinalFreedom ? goldMat : woodMat, 0, 5.0, 0, 1.02);
 
-  const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 4.6, 0.65), woodMat);
-  leftPillar.position.set(-2.3, 2.3, 0);
-  const rightPillar = leftPillar.clone();
-  rightPillar.position.x = 2.3;
-  const arch = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.72, 0.85), isFinalFreedom ? goldMat : woodMat);
-  arch.position.set(0, 4.65, 0);
+  if (isFinalFreedom) {
+    for (const side of [-1, 1]) {
+      part(group, new THREE.BoxGeometry(1.85, 4.3, 0.22), woodMat, 0.35, 2.15, side * 3.15).rotation.y = side * -1.35;
+    }
+  }
+  const portal = part(
+    group,
+    new THREE.PlaneGeometry(4.35, 4.55),
+    new THREE.MeshBasicMaterial({ color: isFinalFreedom ? 0xaaff8c : 0xffd86b, transparent: true, opacity: 0.36, side: THREE.DoubleSide }),
+    0,
+    2.28,
+    0,
+  );
+  portal.rotation.y = Math.PI * 0.5;
+  portal.userData.noShadow = true;
 
-  const portalMat = new THREE.MeshBasicMaterial({
-    color: isFinalFreedom ? 0x9eff82 : 0xffd466,
-    transparent: true,
-    opacity: 0.46,
-    side: THREE.DoubleSide,
-  });
-  const portal = new THREE.Mesh(new THREE.PlaneGeometry(3.95, 4.3), portalMat);
-  portal.position.set(0, 2.15, 0);
-
-  const gateLight = new THREE.PointLight(isFinalFreedom ? 0xa8ff78 : 0xffcb52, 3.2, 14);
-  gateLight.position.set(0, 2.6, -1.2);
-
-  group.add(leftPillar, rightPillar, arch, portal, gateLight);
+  const gateLight = new THREE.PointLight(isFinalFreedom ? 0xb4ff82 : 0xffcf59, 3.6, 15);
+  gateLight.position.set(-1.0, 2.8, 0);
+  group.add(gateLight);
   enableShadow(group, true, true);
-  portal.castShadow = false;
   return group;
 }

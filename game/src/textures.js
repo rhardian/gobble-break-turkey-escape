@@ -1,4 +1,4 @@
-// Procedural PBR CanvasTexture generator for Three.js materials (100% offline, zero external assets).
+// Rich procedural painted PBR CanvasTextures (diffuse & detail maps, 100% offline, zero external assets).
 
 import * as THREE from 'three';
 
@@ -19,248 +19,254 @@ function makeTex(w, h, drawFn, repeatX = 1, repeatY = 1, srgb = true) {
 }
 
 export function createPbrTextures() {
-  // 1. Crisp Autumn Carriage Dirt Road & Lush Grass Verges (512x512, zero giant blotches)
-  const farmGround = makeTex(512, 512, (g, w, h) => {
-    // Rich packed autumn earth road center
-    g.fillStyle = '#875024';
+  // 1. Hand-Painted Scalloped Chestnut & Bronze Turkey Plumage
+  const turkeyPlumage = makeTex(256, 256, (g, w, h) => {
+    const bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#c26023');
+    bg.addColorStop(0.55, '#8c3716');
+    bg.addColorStop(1, '#5e200c');
+    g.fillStyle = bg;
     g.fillRect(0, 0, w, h);
 
-    // Lush olive-gold autumn grass verges on left & right shoulders
-    g.fillStyle = '#586e26';
-    g.fillRect(0, 0, 92, h);
-    g.fillRect(w - 92, 0, 92, h);
+    const rows = 8;
+    const cols = 8;
+    const rw = w / cols;
+    const rh = h / rows;
+    for (let r = 0; r <= rows; r++) {
+      const off = (r % 2) * (rw * 0.5);
+      for (let c = -1; c <= cols; c++) {
+        const cx = c * rw + off;
+        const cy = r * rh;
+        g.fillStyle = r < 3 ? '#cf6f29' : r < 6 ? '#9c4019' : '#732910';
+        g.beginPath();
+        g.arc(cx, cy, rw * 0.56, 0, Math.PI);
+        g.fill();
+        g.strokeStyle = 'rgba(255, 224, 165, 0.24)';
+        g.lineWidth = 2;
+        g.stroke();
+        g.strokeStyle = 'rgba(38, 13, 5, 0.42)';
+        g.lineWidth = 1.6;
+        g.beginPath();
+        g.arc(cx, cy + 2, rw * 0.56, 0.15, Math.PI - 0.15);
+        g.stroke();
+      }
+    }
+  }, 2, 2);
 
-    // Timber border edging along road shoulders
-    g.fillStyle = '#4d2611';
-    g.fillRect(88, 0, 6, h);
-    g.fillRect(w - 94, 0, 6, h);
+  // 2. Autumn Farmyard Cobblestone & Sunlit Dirt Lane (runs along +X!)
+  const farmGround = makeTex(512, 512, (g, w, h) => {
+    // Rich sunlit harvest earth center
+    g.fillStyle = '#915726';
+    g.fillRect(0, 0, w, h);
 
-    // Subtle wagon-wheel ruts & warm sunlit center crown
-    g.fillStyle = 'rgba(255, 198, 120, 0.10)';
-    g.fillRect(190, 0, 132, h);
-    g.fillStyle = 'rgba(56, 26, 9, 0.22)';
-    g.fillRect(148, 0, 18, h);
-    g.fillRect(w - 166, 0, 18, h);
+    // Lush mossy-golden autumn grass edges (top=back Z, bottom=front Z)
+    const topGrass = g.createLinearGradient(0, 0, 0, 108);
+    topGrass.addColorStop(0, '#4c6620');
+    topGrass.addColorStop(1, '#708729');
+    g.fillStyle = topGrass;
+    g.fillRect(0, 0, w, 104);
 
-    // Fine pebble & soil grain on the dirt road
-    const earthTones = ['#9e612e', '#6e3d18', '#b37237', '#78441c'];
-    for (let i = 0; i < 420; i++) {
-      g.fillStyle = earthTones[i % earthTones.length];
-      const x = 98 + ((i * 73) % (w - 196));
-      const y = (i * 97) % h;
-      g.fillRect(x, y, 3 + (i % 3), 2 + (i % 3));
+    const botGrass = g.createLinearGradient(0, h - 104, 0, h);
+    botGrass.addColorStop(0, '#708729');
+    botGrass.addColorStop(1, '#48611e');
+    g.fillStyle = botGrass;
+    g.fillRect(0, h - 104, w, 104);
+
+    // Soft cobblestone & sunlit highlight strip along center path
+    g.fillStyle = 'rgba(255, 212, 138, 0.15)';
+    g.fillRect(0, 196, w, 120);
+    g.fillStyle = 'rgba(64, 30, 10, 0.22)';
+    g.fillRect(0, 148, w, 16);
+    g.fillRect(0, h - 164, w, 16);
+
+    // Subtle stepping cobbles & soil grain
+    const stones = ['#a86832', '#7a451c', '#b87a3d', '#824b1e'];
+    for (let i = 0; i < 380; i++) {
+      g.fillStyle = stones[i % stones.length];
+      const x = (i * 89) % w;
+      const y = 112 + ((i * 67) % (h - 224));
+      g.fillRect(x, y, 6 + (i % 5), 4 + (i % 4));
     }
 
-    // Fine grass blades on outer verges
-    const grassTones = ['#6f872f', '#46591c', '#8fa138', '#ab8b29'];
-    for (let i = 0; i < 320; i++) {
-      g.fillStyle = grassTones[i % grassTones.length];
-      const leftSide = i % 2 === 0;
-      const gx = leftSide ? (i * 29) % 84 : w - 88 + ((i * 31) % 84);
-      const gy = (i * 67) % h;
-      g.fillRect(gx, gy, 2, 6 + (i % 4));
+    // Fine grass tufts along verges
+    const blades = ['#89a135', '#3d5418', '#b89a2c'];
+    for (let i = 0; i < 280; i++) {
+      g.fillStyle = blades[i % blades.length];
+      const x = (i * 53) % w;
+      const y = i % 2 === 0 ? (i * 31) % 98 : h - 98 + ((i * 29) % 94);
+      g.fillRect(x, y, 5, 3);
     }
 
-    // Tiny crisp fallen crimson & gold maple leaves
-    const leaves = ['#d4321c', '#f5a627', '#e3641b'];
-    for (let i = 0; i < 64; i++) {
+    // Crisp scattered fallen autumn maple leaves
+    const leaves = ['#d93218', '#f5a623', '#e8681a', '#ffd04d'];
+    for (let i = 0; i < 60; i++) {
       g.fillStyle = leaves[i % leaves.length];
-      g.fillRect((i * 83) % w, (i * 113) % h, 4, 3);
+      g.fillRect((i * 107) % w, (i * 71) % h, 5, 4);
     }
-  }, 1, 10);
+  }, 16, 1);
 
-  // 2. Glossy Cream & Terracotta Checkered Kitchen Floor
+  // 3. Glossy Cream & Terracotta Checkered Kitchen Floor
   const kitchenTile = makeTex(256, 256, (g) => {
     const s = 64;
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
         const cream = (r + c) % 2 === 0;
-        g.fillStyle = cream ? '#f4e5c8' : '#a13820';
+        g.fillStyle = cream ? '#f7ebd2' : '#ad3b21';
         g.fillRect(c * s, r * s, s, s);
-        g.fillStyle = cream ? 'rgba(255,255,255,0.35)' : 'rgba(255,195,140,0.16)';
-        g.fillRect(c * s + 3, r * s + 3, s - 6, 6);
-        g.strokeStyle = 'rgba(42, 18, 10, 0.35)';
+        // Glossy ceramic bevel highlight
+        g.fillStyle = cream ? 'rgba(255,255,255,0.46)' : 'rgba(255,205,150,0.22)';
+        g.fillRect(c * s + 3, r * s + 3, s - 6, 7);
+        g.fillStyle = 'rgba(42, 16, 8, 0.14)';
+        g.fillRect(c * s + 3, r * s + s - 7, s - 6, 4);
+        g.strokeStyle = 'rgba(46, 18, 10, 0.42)';
         g.lineWidth = 3;
         g.strokeRect(c * s, r * s, s, s);
       }
     }
-  }, 3.4, 28);
+  }, 30, 3.2);
 
-  // 3. Weathered Oak & Cedar Barn Planks
+  // 4. Warm Pegged Oak Timber Barn Planks (planks run along +X!)
   const woodPlank = makeTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#693619';
+    g.fillStyle = '#733b1c';
     g.fillRect(0, 0, w, h);
-    for (let y = 0; y < h; y += 4) {
-      g.fillStyle = y % 8 === 0 ? 'rgba(30, 12, 5, 0.24)' : 'rgba(255, 204, 136, 0.08)';
-      g.fillRect(0, y, w, 3);
+    for (let y = 0; y < h; y += 64) {
+      g.fillStyle = y % 128 === 0 ? '#7d411f' : '#693417';
+      g.fillRect(0, y, w, 62);
+      for (let gy = y + 6; gy < y + 58; gy += 6) {
+        g.fillStyle = gy % 12 === 0 ? 'rgba(30,12,5,0.18)' : 'rgba(255,208,145,0.09)';
+        g.fillRect(0, gy, w, 2);
+      }
+      g.fillStyle = '#2e1307';
+      g.fillRect(0, y + 62, w, 3);
     }
-    g.strokeStyle = '#2b1207';
-    g.lineWidth = 4;
-    for (let x = 0; x <= w; x += 64) {
-      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
-    }
-  }, 4, 22);
+  }, 24, 3);
 
-  // 4. Warm Rustic Hearth Brick Wall
-  const brickWall = makeTex(256, 128, (g) => {
-    g.fillStyle = '#3d1c11';
-    g.fillRect(0, 0, 256, 128);
-    const cols = ['#8c3b20', '#752e18', '#9e4728', '#6b2915'];
-    for (let row = 0; row < 4; row++) {
+  // 5. Warm Rustic Hearth Brick Kitchen Wall
+  const brickWall = makeTex(256, 256, (g) => {
+    g.fillStyle = '#472214';
+    g.fillRect(0, 0, 256, 256);
+    const cols = ['#9c4123', '#823319', '#b04e2a', '#752b15', '#a64826'];
+    for (let row = 0; row < 8; row++) {
       const y = row * 32 + 3;
       const off = (row % 2) * 32;
       for (let col = -1; col < 5; col++) {
-        g.fillStyle = cols[(row + col + 4) % cols.length];
+        g.fillStyle = cols[(row * 3 + col + 8) % cols.length];
         g.fillRect(col * 64 + off + 3, y, 58, 26);
-        g.fillStyle = 'rgba(255, 212, 155, 0.14)';
+        g.fillStyle = 'rgba(255, 220, 168, 0.18)';
         g.fillRect(col * 64 + off + 4, y + 1, 56, 4);
+        g.fillStyle = 'rgba(34, 12, 5, 0.22)';
+        g.fillRect(col * 64 + off + 4, y + 22, 56, 4);
       }
     }
-  }, 14, 2);
+  }, 20, 2.2);
 
-  // 5. Royal Banquet Burgundy & Gold Runner Floor
+  // 6. Royal Banquet Crimson & Gold Runner Floor (runs along +X!)
   const banquetFloor = makeTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#472010';
+    g.fillStyle = '#4f2412';
     g.fillRect(0, 0, w, h);
-    // Plush royal crimson center carpet
-    g.fillStyle = '#7c1722';
-    g.fillRect(36, 0, w - 72, h);
-    g.fillStyle = '#ebb03b';
-    g.fillRect(36, 0, 8, h);
-    g.fillRect(w - 44, 0, 8, h);
-    g.strokeStyle = 'rgba(255, 206, 98, 0.25)';
+    g.fillStyle = '#8a1724';
+    g.fillRect(0, 44, w, h - 88);
+    g.fillStyle = '#f2ba3d';
+    g.fillRect(0, 44, w, 9);
+    g.fillRect(0, h - 53, w, 9);
+    g.strokeStyle = 'rgba(255, 214, 112, 0.32)';
     g.lineWidth = 3;
-    for (let y = 0; y < h; y += 64) {
+    for (let x = 0; x < w; x += 64) {
       g.beginPath();
-      g.moveTo(w * 0.5, y + 8);
-      g.lineTo(w - 64, y + 32);
-      g.lineTo(w * 0.5, y + 56);
-      g.lineTo(64, y + 32);
+      g.moveTo(x + 8, h * 0.5);
+      g.lineTo(x + 32, 68);
+      g.lineTo(x + 56, h * 0.5);
+      g.lineTo(x + 32, h - 68);
       g.closePath();
       g.stroke();
     }
-  }, 1, 18);
+  }, 18, 1);
 
-  // 6. Golden Woven Straw / Hay Texture
+  // 7. Golden Woven Straw / Hay Texture
   const hayWeave = makeTex(128, 128, (g, w, h) => {
-    g.fillStyle = '#db9b27';
+    g.fillStyle = '#e0a028';
     g.fillRect(0, 0, w, h);
-    const strands = ['#fae075', '#b57112', '#f0b93a', '#8c500b'];
-    for (let i = 0; i < 90; i++) {
+    const strands = ['#fce37c', '#ba7412', '#f2bd3d', '#94550b'];
+    for (let i = 0; i < 110; i++) {
       g.strokeStyle = strands[i % strands.length];
-      g.lineWidth = 3;
+      g.lineWidth = 2.6;
       const x = (i * 29) % w;
       const y = (i * 41) % h;
-      g.beginPath(); g.moveTo(x - 16, y - 6); g.lineTo(x + 18, y + 7); g.stroke();
+      g.beginPath();
+      g.moveTo(x - 16, y - 5);
+      g.lineTo(x + 18, y + 6);
+      g.stroke();
     }
   }, 2, 2);
 
-  // 7. Festive Red & Cream Gingham Tablecloth
+  // 8. Festive Red & Cream Gingham Tablecloth / Apron
   const gingham = makeTex(128, 128, (g) => {
-    g.fillStyle = '#fff5e0';
+    g.fillStyle = '#fff6e3';
     g.fillRect(0, 0, 128, 128);
-    g.fillStyle = 'rgba(204, 42, 28, 0.55)';
+    g.fillStyle = 'rgba(209, 44, 29, 0.58)';
     for (let i = 0; i < 128; i += 32) {
       g.fillRect(i, 0, 16, 128);
       g.fillRect(0, i, 128, 16);
     }
-  }, 2, 2);
+  }, 2.2, 2.2);
 
-  // 8. Red Lumberjack Plaid Flannel
+  // 9. Red Lumberjack Buffalo Plaid Flannel
   const plaid = makeTex(128, 128, (g) => {
-    g.fillStyle = '#c42b1c';
+    g.fillStyle = '#cc2e1d';
     g.fillRect(0, 0, 128, 128);
-    g.fillStyle = 'rgba(28, 12, 10, 0.45)';
+    g.fillStyle = 'rgba(24, 10, 8, 0.46)';
     for (let i = 0; i < 128; i += 32) {
-      g.fillRect(i, 0, 12, 128);
-      g.fillRect(0, i, 128, 12);
+      g.fillRect(i, 0, 14, 128);
+      g.fillRect(0, i, 128, 14);
     }
-  }, 2, 2);
+    g.strokeStyle = 'rgba(255, 228, 168, 0.25)';
+    g.lineWidth = 2;
+    for (let i = 16; i < 128; i += 32) {
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 128); g.stroke();
+      g.beginPath(); g.moveTo(0, i); g.lineTo(128, i); g.stroke();
+    }
+  }, 2.5, 2.5);
 
-  // 9. Parchment UI Pattern
+  // 10. Woven Straw Hat Texture
+  const strawHat = makeTex(128, 128, (g, w, h) => {
+    g.fillStyle = '#f0bf54';
+    g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 8) {
+      g.fillStyle = y % 16 === 0 ? 'rgba(176, 114, 24, 0.35)' : 'rgba(255, 244, 196, 0.3)';
+      g.fillRect(0, y, w, 4);
+    }
+  }, 3, 2);
+
+  // 11. Brass "450°F" Oven Thermometer Dial Face
+  const ovenDial = makeTex(256, 128, (g, w, h) => {
+    g.fillStyle = '#240f08';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#d92814';
+    g.fillRect(8, 8, w - 16, h - 16);
+    g.strokeStyle = '#ffcf54';
+    g.lineWidth = 7;
+    g.strokeRect(8, 8, w - 16, h - 16);
+    g.fillStyle = '#fff9de';
+    g.font = '900 66px "Trebuchet MS", Impact, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('450°F', w * 0.5, h * 0.54);
+  }, 1, 1);
+
+  // 12. Warm Parchment UI Pattern
   const parchmentCanvas = document.createElement('canvas');
   parchmentCanvas.width = 96;
   parchmentCanvas.height = 96;
   const pCtx = parchmentCanvas.getContext('2d');
-  pCtx.fillStyle = '#f6e4be';
+  pCtx.fillStyle = '#f7e6c2';
   pCtx.fillRect(0, 0, 96, 96);
-  for (let i = 0; i < 60; i++) {
-    pCtx.fillStyle = i % 2 === 0 ? 'rgba(150, 92, 34, 0.05)' : 'rgba(255, 252, 240, 0.18)';
+  for (let i = 0; i < 64; i++) {
+    pCtx.fillStyle = i % 2 === 0 ? 'rgba(155, 96, 36, 0.055)' : 'rgba(255, 253, 242, 0.22)';
     pCtx.fillRect((i * 19) % 96, (i * 29) % 96, 8, 5);
   }
 
-  // 10. Painted Golden-Hour Thanksgiving Sunset Sky Dome
-  const skyAutumn = makeTex(1024, 512, (g, w, h) => {
-    const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0.0, '#36182c');
-    grad.addColorStop(0.24, '#8a2f2b');
-    grad.addColorStop(0.42, '#db6525');
-    grad.addColorStop(0.54, '#ffb94d');
-    grad.addColorStop(0.64, '#ffe596');
-    grad.addColorStop(1.0, '#7a451c');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-
-    // Radiant golden harvest sun near +Z horizon (u ≈ 0.25 and 0.75 on equirectangular dome)
-    for (const sx of [w * 0.25, w * 0.75]) {
-      const sunGlow = g.createRadialGradient(sx, h * 0.46, 6, sx, h * 0.46, 96);
-      sunGlow.addColorStop(0, 'rgba(255, 252, 224, 0.96)');
-      sunGlow.addColorStop(0.3, 'rgba(255, 212, 112, 0.62)');
-      sunGlow.addColorStop(1, 'rgba(255, 140, 42, 0)');
-      g.fillStyle = sunGlow;
-      g.beginPath();
-      g.arc(sx, h * 0.46, 96, 0, Math.PI * 2);
-      g.fill();
-    }
-
-    // Painterly coral & gold sunset clouds across upper sky band
-    for (let i = 0; i < 22; i++) {
-      const cx = (i * 97) % w;
-      const cy = h * (0.24 + (i % 5) * 0.048);
-      const cw = 54 + (i % 4) * 24;
-      const ch = 12 + (i % 3) * 6;
-      g.fillStyle = i % 2 === 0 ? 'rgba(255, 214, 138, 0.34)' : 'rgba(235, 108, 66, 0.28)';
-      g.beginPath();
-      g.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-  }, 1, 1);
-  skyAutumn.wrapS = THREE.RepeatWrapping;
-  skyAutumn.wrapT = THREE.ClampToEdgeWrapping;
-
-  // 11. Starry Harvest-Moon Twilight Sky Dome for Grand Banquet Finale
-  const skyMoonlit = makeTex(1024, 512, (g, w, h) => {
-    const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0.0, '#0f0b21');
-    grad.addColorStop(0.28, '#231c47');
-    grad.addColorStop(0.48, '#543566');
-    grad.addColorStop(0.58, '#bd7246');
-    grad.addColorStop(1.0, '#2e1810');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-
-    g.fillStyle = 'rgba(255, 248, 220, 0.85)';
-    for (let i = 0; i < 140; i++) {
-      const sx = (i * 79) % w;
-      const sy = (i * 43) % Math.floor(h * 0.44);
-      g.fillRect(sx, sy, i % 4 === 0 ? 3 : 2, i % 4 === 0 ? 3 : 2);
-    }
-
-    for (const mx of [w * 0.26, w * 0.76]) {
-      const mGlow = g.createRadialGradient(mx, h * 0.34, 8, mx, h * 0.34, 68);
-      mGlow.addColorStop(0, 'rgba(255, 250, 224, 0.96)');
-      mGlow.addColorStop(0.35, 'rgba(255, 218, 148, 0.45)');
-      mGlow.addColorStop(1, 'rgba(255, 190, 110, 0)');
-      g.fillStyle = mGlow;
-      g.beginPath();
-      g.arc(mx, h * 0.34, 68, 0, Math.PI * 2);
-      g.fill();
-    }
-  }, 1, 1);
-  skyMoonlit.wrapS = THREE.RepeatWrapping;
-  skyMoonlit.wrapT = THREE.ClampToEdgeWrapping;
-
   return {
+    turkeyPlumage,
     farmGround,
     kitchenTile,
     woodPlank,
@@ -269,8 +275,8 @@ export function createPbrTextures() {
     hayWeave,
     gingham,
     plaid,
+    strawHat,
+    ovenDial,
     parchmentCanvas,
-    skyAutumn,
-    skyMoonlit,
   };
 }
